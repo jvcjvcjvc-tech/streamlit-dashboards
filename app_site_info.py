@@ -1,6 +1,7 @@
 """
 Site Information Dashboard
 Comprehensive site details with FOPS, Power, Access information
+Comprehensive site details with FOPS, Power, Access information
 """
 
 import streamlit as st
@@ -132,18 +133,34 @@ st.markdown("""
 
 @st.cache_data(ttl=300)
 def load_site_data():
-    """Load the most recent site info data"""
-    sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
-    csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+    """Load site info data from bundled CSV, local files, or generate sample"""
     
-    for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
-        try:
-            df = pd.read_csv(f, nrows=5, low_memory=False)
+    # Try loading from bundled CSV (for cloud deployment)
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bundled_csv = os.path.join(script_dir, "site_data.csv")
+        if os.path.exists(bundled_csv):
+            df = pd.read_csv(bundled_csv, low_memory=False)
             if 'SITEID' in df.columns and 'REGION' in df.columns:
-                full_df = pd.read_csv(f, low_memory=False)
-                return full_df
-        except Exception:
-            continue
+                return df
+    except Exception:
+        pass
+    
+    # Try loading from local SSO path (for local development)
+    try:
+        sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
+        csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+        
+        for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
+            try:
+                df = pd.read_csv(f, nrows=5, low_memory=False)
+                if 'SITEID' in df.columns and 'REGION' in df.columns:
+                    return pd.read_csv(f, low_memory=False)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
     return None
 
 
