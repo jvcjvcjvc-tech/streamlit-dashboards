@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -144,20 +145,63 @@ COVERAGE_TYPES = {
 }
 
 @st.cache_data(ttl=300)
-def load_macro_data():
-    sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
-    csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+def generate_sample_data():
+    """Generate sample macro sites data for demo/cloud deployment"""
+    np.random.seed(42)
     
-    for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
-        try:
-            df = pd.read_csv(f, nrows=5, low_memory=False)
-            if 'COVERAGE_ID' in df.columns and 'SITE_COUNT' in df.columns:
-                return pd.read_csv(f, low_memory=False)
-            elif 'COVERAGE_TYPE' in df.columns and 'SITE_COUNT' in df.columns:
-                return pd.read_csv(f, low_memory=False)
-        except Exception:
-            continue
-    return None
+    regions = ['WEST', 'EAST', 'CENTRAL', 'SOUTH', 'NORTHEAST', 'NORTHWEST']
+    markets = [
+        'Los Angeles', 'New York', 'Chicago', 'Dallas', 'Houston', 'Phoenix',
+        'San Antonio', 'San Diego', 'San Jose', 'Austin', 'Jacksonville', 'Fort Worth',
+        'Columbus', 'Charlotte', 'Seattle', 'Denver', 'Boston', 'Detroit',
+        'Portland', 'Las Vegas', 'Miami', 'Atlanta', 'Philadelphia', 'Baltimore'
+    ]
+    coverage_ids = ['A', 'B', 'C', 'D', 'E', 'F']
+    ring_descriptions = ['Urban Core', 'Suburban', 'Rural', 'Highway', 'Dense Urban']
+    
+    data = []
+    for region in regions:
+        region_markets = np.random.choice(markets, size=np.random.randint(3, 8), replace=False)
+        for market in region_markets:
+            for coverage_id in coverage_ids:
+                for ring in ring_descriptions:
+                    if np.random.random() > 0.3:
+                        base_sites = 100 if coverage_id == 'A' else 30
+                        site_count = int(np.random.exponential(base_sites) + np.random.randint(5, 50))
+                        sector_count = site_count * np.random.randint(2, 5)
+                        data.append({
+                            'COVERAGE_ID': coverage_id,
+                            'REGION': region,
+                            'MARKET': market,
+                            'RING_ID_DESCRIPTION': ring,
+                            'SITE_COUNT': site_count,
+                            'SECTOR_COUNT': sector_count
+                        })
+    
+    return pd.DataFrame(data)
+
+
+@st.cache_data(ttl=300)
+def load_macro_data():
+    """Load macro data from local files or generate sample data for cloud"""
+    try:
+        sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
+        csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+        
+        for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
+            try:
+                df = pd.read_csv(f, nrows=5, low_memory=False)
+                if 'COVERAGE_ID' in df.columns and 'SITE_COUNT' in df.columns:
+                    return pd.read_csv(f, low_memory=False)
+                elif 'COVERAGE_TYPE' in df.columns and 'SITE_COUNT' in df.columns:
+                    return pd.read_csv(f, low_memory=False)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
+    # Return sample data for cloud/demo deployment
+    return generate_sample_data()
 
 
 def format_number(num):
@@ -194,12 +238,12 @@ def main():
     df = load_macro_data()
     
     if df is None or df.empty:
-        st.error("No macro sites data available. Please run the macro_sites_coverage_a.sql query first.")
-        st.code("""
-cd "C:\\Users\\JChalap1\\OneDrive - T-Mobile USA\\Documents\\AI_CURSOR\\query_execution_agent_sso_auth 5\\query_execution_agent_sso_auth"
-python simple_agent_with_sso_auth.py macro_sites_coverage_a.sql
-        """)
+        st.error("No macro sites data available.")
         return
+    
+    # Check if using sample data (cloud deployment)
+    if 'Los Angeles' in df['MARKET'].values and 'WEST' in df['REGION'].values:
+        st.info("📊 **Demo Mode:** Displaying sample data. Connect to your data source for live data.")
     
     coverage_id_col = 'COVERAGE_ID' if 'COVERAGE_ID' in df.columns else 'COVERAGE_TYPE'
     
