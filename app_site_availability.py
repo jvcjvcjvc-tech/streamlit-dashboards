@@ -203,6 +203,11 @@ def main():
     # Parse date if needed
     if 'DATE' in df.columns:
         df['DATE'] = pd.to_datetime(df['DATE'])
+        # Extract hour from timestamp if HOUR column doesn't exist
+        if 'HOUR' not in df.columns:
+            df['HOUR'] = df['DATE'].dt.hour
+        # Keep only the date part for date-based grouping
+        df['DATE_ONLY'] = df['DATE'].dt.date
     
     # Sidebar
     with st.sidebar:
@@ -233,10 +238,33 @@ def main():
             st.cache_data.clear()
             st.rerun()
     
-    # Calculate metrics
+    # Calculate metrics - handle real data column names
     combo_col = 'COMBO_AVAIL' if 'COMBO_AVAIL' in df.columns else None
-    lte_col = 'LTE_AVAIL' if 'LTE_AVAIL' in df.columns else None
-    nr_col = 'NR_AVAIL' if 'NR_AVAIL' in df.columns else None
+    
+    # Convert COMBO_AVAIL to percentage if it's a decimal
+    if combo_col and df[combo_col].max() <= 1:
+        df['COMBO_AVAIL_PCT'] = df[combo_col] * 100
+        combo_col = 'COMBO_AVAIL_PCT'
+    
+    # Calculate LTE availability % from time columns
+    if 'TOTAL_AVAIL_TIME_LTE' in df.columns and 'TOTAL_DOWNTIME_LTE' in df.columns:
+        total_time = df['TOTAL_AVAIL_TIME_LTE'] + df['TOTAL_DOWNTIME_LTE']
+        df['LTE_AVAIL_PCT'] = (df['TOTAL_AVAIL_TIME_LTE'] / total_time.replace(0, 1)) * 100
+        lte_col = 'LTE_AVAIL_PCT'
+    elif 'LTE_AVAIL' in df.columns:
+        lte_col = 'LTE_AVAIL'
+    else:
+        lte_col = None
+    
+    # Calculate 5G/NR availability % from time columns
+    if 'TOTAL_AVAIL_TIME_5G' in df.columns and 'TOTAL_DOWNTIME_5G' in df.columns:
+        total_time_5g = df['TOTAL_AVAIL_TIME_5G'] + df['TOTAL_DOWNTIME_5G']
+        df['NR_AVAIL_PCT'] = (df['TOTAL_AVAIL_TIME_5G'] / total_time_5g.replace(0, 1)) * 100
+        nr_col = 'NR_AVAIL_PCT'
+    elif 'NR_AVAIL' in df.columns:
+        nr_col = 'NR_AVAIL'
+    else:
+        nr_col = None
     
     avg_combo = df[combo_col].mean() if combo_col else 0
     avg_lte = df[lte_col].mean() if lte_col else 0
