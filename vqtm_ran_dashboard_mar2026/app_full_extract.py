@@ -1,8 +1,6 @@
 """
 Browse the FULL Snowflake CSV (~1.4M rows) with server-side pagination.
 
-Static index.html cannot embed this (file size + browser memory). Run locally:
-
   streamlit run app_full_extract.py
 
 Requires enough RAM to hold the dataframe (~2–4 GB typical for this extract).
@@ -22,6 +20,11 @@ DEFAULT_CSV = Path(
 )
 
 
+def _normalize_path(raw: str) -> str:
+    s = (raw or "").strip().strip('"').strip("'")
+    return s
+
+
 @st.cache_data(show_spinner="Loading CSV (one-time cache)…")
 def load_csv(path_str: str) -> pd.DataFrame:
     return pd.read_csv(path_str, low_memory=False)
@@ -31,20 +34,76 @@ def main() -> None:
     st.set_page_config(page_title="VQTM — full extract", layout="wide")
     st.title("VQTM RAN availability — full extract dashboard")
     st.caption(
-        "All **1,388,791+** rows are loaded into memory once (cached). "
-        "Use pagination to scroll the table; charts use the full dataset."
+        "All rows are loaded once (cached). Use **Previous / Next** or **Go to page** below the charts. "
+        "If the default path fails, paste the full path in the sidebar (use the text area so nothing is cut off)."
     )
 
-    path_str = st.sidebar.text_input(
-        "Path to `vqtm_ran_avail_from_20260320.csv`",
-        value=str(DEFAULT_CSV),
+    if "csv_path_text" not in st.session_state:
+        st.session_state.csv_path_text = str(DEFAULT_CSV)
+    if "table_page" not in st.session_state:
+        st.session_state.table_page = 1
+
+    st.sidebar.markdown("**CSV location**")
+    st.sidebar.caption(
+        "Use the box below for the **entire** path (OneDrive paths are long). "
+        "`text_input` in the sidebar often truncates — this **text area** does not."
     )
-    p = Path(path_str)
+
+    st.sidebar.text_area(
+        "Full path to `vqtm_ran_avail_from_20260320.csv`",
+        height=100,
+        key="csv_path_text",
+    )
+    path_str = st.session_state.csv_path_text
+
+    if st.sidebar.button("Browse for CSV… (Windows)"):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            picked = filedialog.askopenfilename(
+                title="Select vqtm_ran_avail_from_20260320.csv",
+                filetypes=[("CSV", "*.csv"), ("All", "*.*")],
+            )
+            root.destroy()
+            if picked:
+                st.session_state.csv_path_text = picked
+                st.session_state.table_page = 1
+                st.rerun()
+        except Exception as e:
+            st.sidebar.warning(f"File dialog failed: {e}")
+
+    st.sidebar.caption(
+        f"Default export path exists: **{'Yes' if DEFAULT_CSV.is_file() else 'No'}** "
+        f"(`{DEFAULT_CSV.name}`)"
+    )
+
+    p = Path(_normalize_path(path_str))
     if not p.is_file():
-        st.error(f"File not found: {p}")
+        st.error(f"**File not found:** `{p}`")
+        st.info(
+            "**Tips:** Copy the path from File Explorer (Shift+right‑click file → Copy as path) and paste into the sidebar text area. "
+            f"Expected file name: `vqtm_ran_avail_from_20260320.csv`. Default folder: `{DEFAULT_CSV.parent}`."
+        )
         st.stop()
 
     df = load_csv(str(p.resolve()))
+
+    rows_pp = st.sidebar.slider(
+        "Rows per page",
+        min_value=500,
+        max_value=50_000,
+        value=10_000,
+        step=500,
+        help="How many rows to show in the table at once.",
+    )
+
+    n = len(df)
+    n_pages = max(1, (n + rows_pp - 1) // rows_pp)
+    st.session_state.table_page = int(min(max(1, st.session_state.table_page), n_pages))
 
     st.success(f"**{len(df):,}** rows × **{len(df.columns)}** columns")
 
@@ -65,10 +124,7 @@ def main() -> None:
         else:
             st.metric("Rows 5G downtime > 0", "—")
     with c4:
-        if "PERIOD_START_TIME" in df.columns:
-            st.metric("Period (min → max)", "see below")
-        else:
-            st.metric("Period", "—")
+        st.metric("Table pages", f"{n_pages:,}")
 
     if "PERIOD_START_TIME" in df.columns:
         st.caption(
@@ -95,13 +151,45 @@ def main() -> None:
     st.divider()
     st.subheader("All rows — paginated table")
 
-    rows_pp = st.sidebar.slider("Rows per page", min_value=500, max_value=50_000, value=10_000, step=500)
-    n = len(df)
-    n_pages = max(1, (n + rows_pp - 1) // rows_pp)
-    page = st.sidebar.number_input("Page", min_value=1, max_value=n_pages, value=1, step=1)
-    start = (page - 1) * rows_pp
+    def _prev_page() -> None:
+        st.session_state.table_page = max(1, int(st.session_state.table_page) - 1)
+
+    def _next_page() -> None:
+        st.session_state.table_page = min(n_pages, int(st.session_state.table_page) + 1)
+
+    nav1, nav2, nav3, nav4 = st.columns([1, 1, 2, 2])
+    with nav1:
+        st.button(
+            "◀ Previous page",
+            disabled=st.session_state.table_page <= 1,
+            on_click=_prev_page,
+            key="btn_prev_page",
+        )
+    with nav2:
+        st.button(
+            "Next page ▶",
+            disabled=st.session_state.table_page >= n_pages,
+            on_click=_next_page,
+            key="btn_next_page",
+        )
+    with nav3:
+        st.number_input(
+            "Go to page",
+            min_value=1,
+            max_value=n_pages,
+            step=1,
+            key="table_page",
+            help=f"1 … {n_pages:,}",
+        )
+    with nav4:
+        st.metric("Position", f"{int(st.session_state.table_page):,} / {n_pages:,}")
+
+    pg = int(st.session_state.table_page)
+    start = (pg - 1) * rows_pp
     end = min(start + rows_pp, n)
-    st.caption(f"Showing rows **{start + 1:,}–{end:,}** of **{n:,}** ({n_pages:,} pages)")
+    st.caption(
+        f"Showing dataframe rows **{start + 1:,}–{end:,}** of **{n:,}** · **{rows_pp:,}** rows per page"
+    )
 
     st.dataframe(df.iloc[start:end], use_container_width=True, height=600)
 

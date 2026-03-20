@@ -26,7 +26,9 @@ pip install streamlit pandas plotly   # if needed
 streamlit run app_full_extract.py
 ```
 
-Set the CSV path in the sidebar if your file is not at the default path. You need **several GB free RAM** for pandas to hold this extract comfortably.
+Set the CSV path in the sidebar if your file is not at the default path. Use the **multiline path box** (not a one-line field) so long OneDrive paths are not truncated, or click **Browse for CSV…**. You need **several GB free RAM** for pandas to hold this extract comfortably.
+
+Pagination: **Previous page** / **Next page** and **Go to page** (same row above the table). Change **Rows per page** in the sidebar to adjust page count.
 
 ## Regenerate locally
 
