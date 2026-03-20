@@ -35,7 +35,19 @@ python prepare_dashboard_data.py "path/to/vqtm_ran_avail_from_20260320.csv"
 python build_dashboard.py
 ```
 
-Open **`index.html`** in a browser (or use GitHub blob URL below; interactive charts need the file opened locally or served over HTTPS).
+Open **`index.html`** in a browser (double‑click **`OPEN_STATIC_DASHBOARD.bat`** in this folder, or drag `index.html` into the browser).
+
+### “ERR_EMPTY_RESPONSE” / “vqtm_ran_dashboard_mar2026 didn’t send any data”
+
+That happens if you type something like **`http://vqtm_ran_dashboard_mar2026/`** in the address bar. **That name is only a folder**, not a server — nothing is listening, so the browser gets an empty response.
+
+| What you want | What to do |
+|---------------|------------|
+| Static **`index.html`** dashboard | Use **`file://`** (batch file above) or open the file from File Explorer. |
+| Full 1.4M-row **Streamlit** app | In a terminal: `streamlit run app_full_extract.py` → open **`http://localhost:8501`** (not the folder name). |
+| GitHub | The [folder](https://github.com/jvcjvcjvc-tech/streamlit-dashboards/tree/main/vqtm_ran_dashboard_mar2026) is for code/files; raw HTML in the browser often won’t run Chart.js well — download `index.html` and open locally. |
+
+Interactive charts need the file opened locally or served over HTTP (`python -m http.server` in this folder, then visit `http://127.0.0.1:8000/index.html`).
 
 ## GitHub
 
