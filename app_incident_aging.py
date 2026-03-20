@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from glob import glob
@@ -89,16 +90,58 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_incident_data():
-    sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
-    csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+def generate_sample_data():
+    """Generate sample incident data for demo/cloud deployment"""
+    np.random.seed(42)
     
-    # Find the incident aging file (most recent one with incident data)
-    for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
-        df = pd.read_csv(f, nrows=5, low_memory=False)
-        if 'INCIDENT_NUMBER' in df.columns and 'AGE_DAYS' in df.columns:
-            return pd.read_csv(f, low_memory=False)
-    return None
+    n_incidents = 500
+    
+    priorities = ['P1 - Critical', 'P2 - High', 'P3 - Medium', 'P4 - Low']
+    states = ['Open', 'In Progress', 'Pending', 'On Hold', 'Awaiting Info']
+    categories = ['Network', 'Hardware', 'Software', 'Access', 'Database', 
+                  'Application', 'Security', 'Infrastructure', 'Connectivity', 'Other']
+    assignment_groups = ['Network Operations', 'Field Services', 'NOC Tier 1', 'NOC Tier 2',
+                        'Engineering', 'Database Team', 'Security Team', 'App Support',
+                        'Infrastructure', 'Help Desk', 'Escalation Team']
+    assignees = ['John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Williams', 'Tom Brown',
+                'Emily Davis', 'Chris Wilson', 'Lisa Anderson', 'David Taylor', 'Amy Martinez']
+    
+    base_date = datetime.now()
+    
+    data = {
+        'INCIDENT_NUMBER': [f'INC{1000000 + i}' for i in range(n_incidents)],
+        'SHORT_DESCRIPTION': [f'Issue with {np.random.choice(categories)} - Ticket #{i}' for i in range(n_incidents)],
+        'STATE': np.random.choice(states, n_incidents, p=[0.3, 0.35, 0.15, 0.1, 0.1]),
+        'PRIORITY': np.random.choice(priorities, n_incidents, p=[0.05, 0.2, 0.5, 0.25]),
+        'CATEGORY': np.random.choice(categories, n_incidents),
+        'ASSIGNMENT_GROUP': np.random.choice(assignment_groups, n_incidents),
+        'ASSIGNED_TO': np.random.choice(assignees, n_incidents),
+        'AGE_DAYS': np.random.exponential(30, n_incidents).astype(int) + np.random.randint(1, 15, n_incidents),
+        'DAYS_SINCE_UPDATE': np.random.exponential(15, n_incidents).astype(int) + np.random.randint(0, 10, n_incidents),
+    }
+    
+    data['OPENED_DATE'] = [base_date - timedelta(days=int(age)) for age in data['AGE_DAYS']]
+    data['SYS_UPDATED_DATE'] = [base_date - timedelta(days=int(days)) for days in data['DAYS_SINCE_UPDATE']]
+    
+    return pd.DataFrame(data)
+
+
+@st.cache_data
+def load_incident_data():
+    """Load incident data from local files or generate sample data for cloud"""
+    try:
+        sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
+        csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
+        
+        for f in sorted(csv_files, key=os.path.getmtime, reverse=True):
+            df = pd.read_csv(f, nrows=5, low_memory=False)
+            if 'INCIDENT_NUMBER' in df.columns and 'AGE_DAYS' in df.columns:
+                return pd.read_csv(f, low_memory=False)
+    except Exception:
+        pass
+    
+    # Return sample data for cloud/demo deployment
+    return generate_sample_data()
 
 def main():
     st.markdown('<div class="main-header">📋 Incident Aging Report</div>', unsafe_allow_html=True)
@@ -108,6 +151,10 @@ def main():
     if df is None or df.empty:
         st.error("No incident data available. Please run the incident_aging.sql query first.")
         return
+    
+    # Check if using sample data (cloud deployment)
+    if 'INC1000000' in df['INCIDENT_NUMBER'].values:
+        st.info("📊 **Demo Mode:** Displaying sample data. Connect to your data source for live data.")
     
     # Parse dates
     if 'OPENED_DATE' in df.columns:
