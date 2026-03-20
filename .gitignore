@@ -31,6 +31,7 @@ Thumbs.db
 
 # Data files (keep these local, don't push to GitHub)
 *.csv
+!vqtm_ran_dashboard_mar2026/sample.csv
 results_sso_*.csv
 
 # Logs
