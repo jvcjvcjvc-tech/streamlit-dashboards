@@ -18,15 +18,19 @@ The full export (~1.4M rows, ~800MB) is **not** committed. Generate it locally w
 
 **No — not in a practical way.** A static page would be hundreds of MB, exceed GitHub limits, and browsers would run out of memory or freeze. The HTML dashboard intentionally uses **full-data aggregates** in `summary.json` plus an **8k sample** for dense charts.
 
-To work with **every row**, use the Streamlit app (loads the CSV once, cached; paginated table over the full dataframe):
+To work with **every row**, use the Streamlit app (loads the CSV once, cached from disk; paginated table over the full dataframe):
 
 ```bash
-cd vqtm_ran_dashboard_mar2026
+cd vqtm_ran_dashboard_mar2026   # important: picks up .streamlit/config.toml for large uploads
 pip install streamlit pandas plotly   # if needed
 streamlit run app_full_extract.py
 ```
 
-Set the CSV path in the sidebar if your file is not at the default path. Use the **multiline path box** (not a one-line field) so long OneDrive paths are not truncated, or click **Browse for CSV…**. You need **several GB free RAM** for pandas to hold this extract comfortably.
+**Windows:** paste the full path or use **Browse** (desktop only). The export path includes **both** folders: `query_execution_agent_sso_auth 5\query_execution_agent_sso_auth\` — if you omit the ` 5` segment, the file will not be found.
+
+**Linux / WSL / Streamlit Cloud:** **Browse** is hidden (no `tkinter` GUI). Use **Upload** in the sidebar, or a path like `/mnt/c/Users/.../query_execution_agent_sso_auth 5/query_execution_agent_sso_auth/...`. Set **`VQTM_CSV_PATH`** to force a default file path.
+
+You need **several GB free RAM** for pandas to hold this extract comfortably. Large uploads use `.streamlit/config.toml` (`maxUploadSize = 1200` MB).
 
 Pagination: **Previous page** / **Next page** and **Go to page** (same row above the table). Change **Rows per page** in the sidebar to adjust page count.
 
