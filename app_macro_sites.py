@@ -8,6 +8,13 @@ from glob import glob
 import os
 from datetime import datetime
 
+# Snowflake connection (optional - for cloud deployment)
+try:
+    import snowflake.connector
+    SNOWFLAKE_AVAILABLE = True
+except ImportError:
+    SNOWFLAKE_AVAILABLE = False
+
 st.set_page_config(
     page_title="Macro Sites Dashboard - Coverage ID 'A'",
     page_icon="📡",
@@ -145,6 +152,50 @@ COVERAGE_TYPES = {
 }
 
 @st.cache_data(ttl=300)
+def load_from_snowflake():
+    """Load data directly from Snowflake"""
+    if not SNOWFLAKE_AVAILABLE:
+        return None
+    
+    try:
+        # Check if secrets are configured
+        if "snowflake" not in st.secrets:
+            return None
+        
+        conn = snowflake.connector.connect(
+            account=st.secrets["snowflake"]["account"],
+            user=st.secrets["snowflake"]["user"],
+            password=st.secrets["snowflake"]["password"],
+            warehouse=st.secrets["snowflake"]["warehouse"],
+            database=st.secrets["snowflake"]["database"],
+            schema=st.secrets["snowflake"]["schema"],
+            role=st.secrets["snowflake"].get("role", None)
+        )
+        
+        # Query for macro sites data - customize this query for your table
+        query = st.secrets.get("snowflake", {}).get("query", """
+            SELECT 
+                COVERAGE_ID,
+                REGION,
+                MARKET,
+                RING_ID_DESCRIPTION,
+                COUNT(DISTINCT SITE_ID) AS SITE_COUNT,
+                COUNT(DISTINCT SECTOR_ID) AS SECTOR_COUNT
+            FROM SITES_TABLE
+            WHERE COVERAGE_ID IS NOT NULL
+            GROUP BY COVERAGE_ID, REGION, MARKET, RING_ID_DESCRIPTION
+            ORDER BY REGION, MARKET
+        """)
+        
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.sidebar.warning(f"Snowflake connection failed: {str(e)[:50]}...")
+        return None
+
+
+@st.cache_data(ttl=300)
 def generate_sample_data():
     """Generate sample macro sites data for demo/cloud deployment"""
     np.random.seed(42)
@@ -183,7 +234,14 @@ def generate_sample_data():
 
 @st.cache_data(ttl=300)
 def load_macro_data():
-    """Load macro data from local files or generate sample data for cloud"""
+    """Load macro data from Snowflake, local files, or generate sample data"""
+    
+    # Try Snowflake first (for cloud deployment with secrets configured)
+    df = load_from_snowflake()
+    if df is not None and not df.empty:
+        return df
+    
+    # Try local CSV files (for local development)
     try:
         sso_path = r"C:\Users\JChalap1\OneDrive - T-Mobile USA\Documents\AI_CURSOR\query_execution_agent_sso_auth 5\query_execution_agent_sso_auth"
         csv_files = glob(os.path.join(sso_path, "results_sso_*.csv"))
@@ -200,7 +258,7 @@ def load_macro_data():
     except Exception:
         pass
     
-    # Return sample data for cloud/demo deployment
+    # Return sample data as fallback
     return generate_sample_data()
 
 
