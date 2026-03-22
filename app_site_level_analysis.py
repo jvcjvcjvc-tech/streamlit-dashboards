@@ -388,12 +388,127 @@ def render_site_analysis() -> None:
     st.caption("Sample figures aligned to the reference layout — wire to Snowflake or CSV for production values.")
 
 
+def render_executive_summary() -> None:
+    st.markdown("### Executive Summary")
+    st.caption("Enterprise rollup · trailing 30 days (sample data — bind to your warehouse).")
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    with c1:
+        _kpi_block(
+            "Network availability",
+            "99.58%",
+            ["Target 99.95%", "Days below target: 12"],
+            GREEN,
+            _sparkline_green,
+            chart_key="es_spark_network_avail",
+        )
+    with c2:
+        _kpi_block(
+            "Downtime (sec)",
+            "412.7M",
+            ["Budget: 320.0M", '<span style="color:#e63946">+92.7M vs budget</span>'],
+            GREEN,
+            _sparkline_green,
+            chart_key="es_spark_downtime",
+        )
+    with c3:
+        _kpi_block(
+            "Outage events",
+            "2,847",
+            ["2,104 unique sites"],
+            ORANGE,
+            _sparkline_orange,
+            chart_key="es_spark_outage_events",
+        )
+    with c4:
+        _kpi_block(
+            "Outage minutes",
+            "428K",
+            ["Enterprise total"],
+            ORANGE,
+            _sparkline_orange,
+            chart_key="es_spark_outage_min",
+        )
+    with c5:
+        _kpi_block(
+            "Customer minutes",
+            "18.2M",
+            ["Impacted customer-min"],
+            PINK,
+            _sparkline_pink,
+            chart_key="es_spark_cust_min",
+        )
+    with c6:
+        _kpi_block(
+            "Impacted subscribers",
+            "512K",
+            ["Peak day estimate"],
+            PINK,
+            _sparkline_pink,
+            chart_key="es_spark_impacted_sub",
+        )
+
+    st.markdown('<p class="section-heading">National category mix</p>', unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+    with g1:
+        st.plotly_chart(
+            _stacked_h_bar(
+                "Availability — Summary categories",
+                [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
+            ),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="es_bar_avail_summary",
+        )
+    with g2:
+        st.plotly_chart(
+            _stacked_h_bar(
+                "COTTR — Summary categories",
+                [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
+            ),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="es_bar_cottr_summary",
+        )
+
+    st.markdown('<p class="section-heading">Region spotlight</p>', unsafe_allow_html=True)
+    region_rows = [
+        {"region": "South", "avail": "99.612%", "down": "98.2M", "events": "612", "budget_pct": 118},
+        {"region": "Northeast", "avail": "99.541%", "down": "86.4M", "events": "534", "budget_pct": 105},
+        {"region": "West", "avail": "99.498%", "down": "79.1M", "events": "498", "budget_pct": 96},
+        {"region": "Central", "avail": "99.455%", "down": "91.0M", "events": "521", "budget_pct": 112},
+        {"region": "Mid-Atlantic", "avail": "99.523%", "down": "58.0M", "events": "382", "budget_pct": 89},
+    ]
+    rh = (
+        "<tr><th>Region</th><th>Avail%</th><th>Downtime</th><th>Events</th><th>Budget</th></tr>"
+    )
+    rb = []
+    for r in region_rows:
+        rb.append(
+            "<tr>"
+            f'<td>{r["region"]}</td>'
+            f'<td class="avail">{r["avail"]}</td>'
+            f'<td class="down">{r["down"]}</td>'
+            f'<td>{r["events"]}</td>'
+            f'<td>{_budget_bar_html(r["budget_pct"])} <span style="color:{TEXT_MUTED};font-size:11px">{r["budget_pct"]}%</span></td>'
+            "</tr>"
+        )
+    st.markdown(
+        f'<table class="fos-table">{rh}{"".join(rb)}</table>',
+        unsafe_allow_html=True,
+    )
+
+    st.caption("Executive view uses summary charts only; open **Site Analysis** for focus categories and Field Ops tables.")
+
+
 def main() -> None:
     st.markdown('<div class="sla-toprow"><span class="deploy-link">Deploy</span></div>', unsafe_allow_html=True)
     tabs = st.tabs(NAV_ITEMS)
     for i, tab in enumerate(tabs):
         with tab:
-            if NAV_ITEMS[i] == "Site Analysis":
+            if NAV_ITEMS[i] == "Executive Summary":
+                render_executive_summary()
+            elif NAV_ITEMS[i] == "Site Analysis":
                 render_site_analysis()
             else:
                 st.info(
