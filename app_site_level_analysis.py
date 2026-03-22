@@ -203,6 +203,7 @@ def _kpi_block(
     sub_lines: list[str],
     accent: str,
     spark_fn,
+    chart_key: str,
 ) -> None:
     st.markdown(f'<p style="color:{TEXT_MUTED};font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 6px 0;">{title}</p>', unsafe_allow_html=True)
     st.markdown(
@@ -211,7 +212,12 @@ def _kpi_block(
     )
     for line in sub_lines:
         st.markdown(f'<p style="color:{TEXT_MUTED};font-size:12px;margin:4px 0 0 0;">{line}</p>', unsafe_allow_html=True)
-    st.plotly_chart(spark_fn(), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(
+        spark_fn(),
+        use_container_width=True,
+        config={"displayModeBar": False},
+        key=chart_key,
+    )
 
 
 def _budget_bar_html(pct: float) -> str:
@@ -252,6 +258,7 @@ def render_site_analysis() -> None:
             ["1/8 · 12%", "Days &lt; 99.95%"],
             GREEN,
             _sparkline_green,
+            chart_key="sla_spark_daily_avail",
         )
     with c2:
         _kpi_block(
@@ -260,6 +267,7 @@ def render_site_analysis() -> None:
             ["Budget: 32.1M", '<span style="color:#e63946">+64.2M</span>'],
             GREEN,
             _sparkline_green,
+            chart_key="sla_spark_downtime",
         )
     with c3:
         _kpi_block(
@@ -268,6 +276,7 @@ def render_site_analysis() -> None:
             ["338 sites"],
             ORANGE,
             _sparkline_orange,
+            chart_key="sla_spark_outage_events",
         )
     with c4:
         _kpi_block(
@@ -276,6 +285,7 @@ def render_site_analysis() -> None:
             ["338 sites"],
             ORANGE,
             _sparkline_orange,
+            chart_key="sla_spark_outage_min",
         )
     with c5:
         _kpi_block(
@@ -284,6 +294,7 @@ def render_site_analysis() -> None:
             ["96 sites"],
             PINK,
             _sparkline_pink,
+            chart_key="sla_spark_cust_min",
         )
     with c6:
         _kpi_block(
@@ -292,6 +303,7 @@ def render_site_analysis() -> None:
             ["96 sites"],
             PINK,
             _sparkline_pink,
+            chart_key="sla_spark_impacted_sub",
         )
 
     st.markdown('<p class="section-heading">Category breakdowns</p>', unsafe_allow_html=True)
@@ -304,6 +316,7 @@ def render_site_analysis() -> None:
             ),
             use_container_width=True,
             config={"displayModeBar": False},
+            key="sla_bar_avail_summary",
         )
         st.plotly_chart(
             _stacked_h_bar(
@@ -318,6 +331,7 @@ def render_site_analysis() -> None:
             ),
             use_container_width=True,
             config={"displayModeBar": False},
+            key="sla_bar_avail_focus",
         )
     with g2:
         st.plotly_chart(
@@ -327,6 +341,7 @@ def render_site_analysis() -> None:
             ),
             use_container_width=True,
             config={"displayModeBar": False},
+            key="sla_bar_cottr_summary",
         )
         st.plotly_chart(
             _stacked_h_bar(
@@ -341,6 +356,7 @@ def render_site_analysis() -> None:
             ),
             use_container_width=True,
             config={"displayModeBar": False},
+            key="sla_bar_cottr_focus",
         )
 
     st.markdown(
