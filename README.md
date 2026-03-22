@@ -74,3 +74,19 @@ BDM_ITSM_REPORTING_DB.SN_ITSM_REPORTING_V.V_INCIDENT_ALL
 ## Caching
 
 Data is cached for 5 minutes to improve performance. Use the "Refresh Data" button to force a reload.
+
+## Site-Level Analysis (Streamlit)
+
+Run locally:
+
+```bash
+streamlit run app_site_level_analysis.py
+```
+
+### Deploy on Streamlit Community Cloud
+
+1. Open **[Streamlit Community Cloud](https://share.streamlit.io/)** and sign in with GitHub.
+2. Choose **Create app** (or go to the [deploy flow](https://share.streamlit.io/deploy)).
+3. Select this repository and branch **`main`**.
+4. Set **Main file path** to `app_site_level_analysis.py`.
+5. **Deploy.** The app uses sample data only; no secrets are required for the default view.
