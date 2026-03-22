@@ -1,13 +1,15 @@
 """
-Build a PowerPoint deck documenting the Site-Level Analysis Streamlit dashboard.
+Build a PowerPoint deck for the Site-Level Analysis dashboard, including Plotly exports
+of every chart from each Streamlit tab (Kaleido required).
 
-  pip install python-pptx
+  pip install python-pptx plotly kaleido numpy
   python create_site_level_analysis_deck.py
 
 Output: Site_Level_Analysis_Dashboard.pptx
 """
 from __future__ import annotations
 
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -17,14 +19,28 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches, Pt
 
+from site_level_charts import (
+    GRAY,
+    GREEN,
+    ORANGE,
+    PINK,
+    PINK_DEEP,
+    fig_region_avail_bars,
+    fig_sparkline,
+    fig_sparkline_green,
+    fig_sparkline_orange,
+    fig_sparkline_pink,
+    fig_stacked_h_bar,
+)
+
 MAGENTA = RGBColor(233, 69, 96)
 DARK_BG = RGBColor(26, 26, 46)
 WHITE = RGBColor(255, 255, 255)
 LIGHT_GRAY = RGBColor(200, 200, 200)
-BLUE = RGBColor(0, 180, 216)
-GREEN = RGBColor(0, 217, 165)
-ORANGE = RGBColor(247, 127, 0)
 CARD_BG = RGBColor(40, 40, 60)
+RGB_GREEN = RGBColor(0, 217, 165)
+RGB_ORANGE = RGBColor(247, 127, 0)
+RGB_MAGENTA = RGBColor(233, 69, 96)
 
 
 def _blank_slide(prs: Presentation):
@@ -61,15 +77,21 @@ def add_title_slide(prs: Presentation, title: str, subtitle: str) -> None:
     p.alignment = PP_ALIGN.CENTER
 
 
-def add_section_title(prs: Presentation, title: str) -> None:
+def add_section_slide(prs: Presentation, tab_name: str) -> None:
     slide = _blank_slide(prs)
-    tb = slide.shapes.add_textbox(Inches(0.5), Inches(3), Inches(12.333), Inches(1.2))
+    tb = slide.shapes.add_textbox(Inches(0.5), Inches(3.1), Inches(12.333), Inches(1))
     p = tb.text_frame.paragraphs[0]
-    p.text = title
-    p.font.size = Pt(40)
+    p.text = tab_name
+    p.font.size = Pt(38)
     p.font.bold = True
     p.font.color.rgb = MAGENTA
     p.alignment = PP_ALIGN.CENTER
+    sb = slide.shapes.add_textbox(Inches(0.5), Inches(4.2), Inches(12.333), Inches(0.6))
+    p2 = sb.text_frame.paragraphs[0]
+    p2.text = "Charts exported from the same Plotly builders as the Streamlit app"
+    p2.font.size = Pt(16)
+    p2.font.color.rgb = LIGHT_GRAY
+    p2.alignment = PP_ALIGN.CENTER
 
 
 def add_bullet_slide(prs: Presentation, title: str, bullets: list[str], footer: str | None = None) -> None:
@@ -90,7 +112,6 @@ def add_bullet_slide(prs: Presentation, title: str, bullets: list[str], footer: 
         para.font.size = Pt(20)
         para.font.color.rgb = WHITE
         para.space_after = Pt(14)
-        para.level = 0
 
     if footer:
         fb = slide.shapes.add_textbox(Inches(0.5), Inches(6.85), Inches(12.333), Inches(0.45))
@@ -140,116 +161,516 @@ def add_metrics_slide(prs: Presentation, title: str, metrics: list[tuple[str, st
         lp.alignment = PP_ALIGN.CENTER
 
 
+def _export_fig(path: Path, fig, width: int = 1280, height: int | None = None) -> None:
+    h = height
+    if h is None:
+        ly = fig.layout.height
+        h = int(ly) + 100 if ly is not None else 380
+    fig.write_image(str(path), width=width, height=h, scale=2)
+
+
+def add_chart_slide(prs: Presentation, tab: str, caption: str, fig, tmp: Path, seq: list[int]) -> None:
+    seq[0] += 1
+    png = tmp / f"chart_{seq[0]}.png"
+    ly = fig.layout.height
+    base_h = int(ly) + 90 if ly is not None else 400
+    _export_fig(png, fig, width=1320, height=min(max(base_h, 260), 520))
+
+    slide = _blank_slide(prs)
+    tb = slide.shapes.add_textbox(Inches(0.45), Inches(0.28), Inches(12.4), Inches(0.55))
+    p = tb.text_frame.paragraphs[0]
+    p.text = f"{tab} — {caption}"
+    p.font.size = Pt(22)
+    p.font.bold = True
+    p.font.color.rgb = MAGENTA
+
+    slide.shapes.add_picture(str(png), Inches(0.35), Inches(0.95), width=Inches(12.6))
+
+
+def add_sparkline_grid_slide(prs: Presentation, tab: str, tmp: Path, seq: list[int]) -> None:
+    labels = [
+        "KPI 1 (green trend)",
+        "KPI 2 (green trend)",
+        "KPI 3 (orange trend)",
+        "KPI 4 (orange trend)",
+        "KPI 5 (pink trend)",
+        "KPI 6 (pink trend)",
+    ]
+    fns = [
+        fig_sparkline_green,
+        fig_sparkline_green,
+        fig_sparkline_orange,
+        fig_sparkline_orange,
+        fig_sparkline_pink,
+        fig_sparkline_pink,
+    ]
+
+    slide = _blank_slide(prs)
+    tb = slide.shapes.add_textbox(Inches(0.45), Inches(0.28), Inches(12.4), Inches(0.55))
+    p = tb.text_frame.paragraphs[0]
+    p.text = f"{tab} — KPI sparklines (six-pack, matches dashboard row)"
+    p.font.size = Pt(22)
+    p.font.bold = True
+    p.font.color.rgb = MAGENTA
+
+    col_w = Inches(3.95)
+    row_h_img = Inches(1.35)
+    gap_x = Inches(0.22)
+    gap_y = Inches(0.55)
+    x0, y0 = Inches(0.4), Inches(0.95)
+
+    for i, (fn, lbl) in enumerate(zip(fns, labels)):
+        seq[0] += 1
+        png = tmp / f"spark_{seq[0]}.png"
+        f = fn()
+        f.update_layout(height=90, margin=dict(l=8, r=8, t=4, b=4))
+        f.write_image(str(png), width=520, height=200, scale=2)
+
+        row, col = divmod(i, 3)
+        left = x0 + col * (col_w + gap_x)
+        top = y0 + row * (row_h_img + gap_y + Inches(0.38))
+
+        slide.shapes.add_picture(str(png), left, top, width=col_w)
+
+        lb = slide.shapes.add_textbox(left, top + row_h_img, col_w, Inches(0.32))
+        lp = lb.text_frame.paragraphs[0]
+        lp.text = lbl
+        lp.font.size = Pt(11)
+        lp.font.color.rgb = LIGHT_GRAY
+
+
+def _kaleido_can_export(tmp: Path) -> bool:
+    try:
+        import kaleido  # noqa: F401
+    except ImportError:
+        return False
+    try:
+        p = tmp / "_kaleido_probe.png"
+        fig_sparkline_green().write_image(str(p), width=160, height=100, scale=1)
+        return p.is_file()
+    except Exception:
+        return False
+
+
+def add_wide_spark_slide(prs: Presentation, tab: str, caption: str, fig, tmp: Path, seq: list[int]) -> None:
+    seq[0] += 1
+    png = tmp / f"wide_{seq[0]}.png"
+    fig.update_layout(height=220, margin=dict(l=20, r=20, t=40, b=30))
+    fig.write_image(str(png), width=1280, height=320, scale=2)
+
+    slide = _blank_slide(prs)
+    tb = slide.shapes.add_textbox(Inches(0.45), Inches(0.28), Inches(12.4), Inches(0.55))
+    p = tb.text_frame.paragraphs[0]
+    p.text = f"{tab} — {caption}"
+    p.font.size = Pt(22)
+    p.font.bold = True
+    p.font.color.rgb = MAGENTA
+    slide.shapes.add_picture(str(png), Inches(0.45), Inches(1.0), width=Inches(12.4))
+
+
+def add_chart_export_missing_slide(prs: Presentation) -> None:
+    add_bullet_slide(
+        prs,
+        "Chart images not embedded",
+        [
+            "Plotly static export needs the Kaleido package:  pip install kaleido",
+            "If pip fails (e.g. corporate TLS), install a Kaleido wheel offline or fix REQUESTS_CA_BUNDLE / SSL cert path.",
+            "All chart definitions still live in site_level_charts.py and match the Streamlit app.",
+        ],
+        footer="Re-run this script after Kaleido installs successfully to regenerate PNGs in the deck.",
+    )
+
+
 def main() -> None:
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
+    seq = [0]
 
-    add_title_slide(
-        prs,
-        "Site-Level Analysis Dashboard",
-        "Streamlit network availability, COTTR, and customer-impact views",
-    )
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        export_ok = _kaleido_can_export(tmp)
 
-    add_bullet_slide(
-        prs,
-        "Purpose",
-        [
-            "Single dark-theme operations view aligned to field and executive workflows.",
-            "Tracks availability %, downtime vs budget, outages, customer minutes, and impacted subscribers.",
-            "Separates Availability vs COTTR category mix (summary and focus hierarchies).",
-            "Supports drill paths: enterprise → region → market → site / incident context.",
-            "Current build uses representative sample metrics; production binds to Snowflake / hourly extracts.",
-        ],
-    )
+        add_title_slide(
+            prs,
+            "Site-Level Analysis Dashboard",
+            "Streamlit views + Plotly chart exports (all tabs)",
+        )
 
-    add_bullet_slide(
-        prs,
-        "Navigation (eight tabs)",
-        [
-            "Executive Summary — national rollup, summary category bars, region spotlight table.",
-            "Site Analysis — six KPI cards with sparklines, four stacked breakdown charts, Field Ops tables.",
-            "Region Availability — regional availability bars, per-region category mix, rollup table.",
-            "Area Availability — market-level availability, focus charts, market budget table.",
-            "Availability Detail — planned vs unplanned, vendor/technology slices, top downtime sites.",
-            "COTTR Detail — COTTR index, resolution/priority mix, COTTR by region.",
-            "Customer Minutes Detail — CM drivers, normalized KPIs, top CM events.",
-            "Data Diagnostics — load freshness, QA checks, partition and late-arrival views.",
-        ],
-        footer="Streamlit runs all tab bodies each rerun; each Plotly widget uses a unique key prefix per tab.",
-    )
+        add_bullet_slide(
+            prs,
+            "About this deck",
+            [
+                "Following slides mirror each Streamlit tab: KPI sparkline grid, then every bar chart from that tab.",
+                "Figures are generated with the shared module site_level_charts.py (same logic as the live app).",
+                "Static export uses Plotly Kaleido; install: pip install kaleido",
+            ],
+        )
+        if not export_ok:
+            add_chart_export_missing_slide(prs)
 
-    add_metrics_slide(
-        prs,
-        "Executive Summary — sample KPIs",
-        [
-            ("Network availability", "99.58%", GREEN),
-            ("Downtime (enterprise)", "412.7M sec", GREEN),
-            ("Outage events", "2,847", ORANGE),
-            ("Outage minutes", "428K", ORANGE),
-            ("Customer minutes", "18.2M", MAGENTA),
-            ("Impacted subscribers", "512K", MAGENTA),
-        ],
-    )
+        # --- Executive Summary ---
+        add_section_slide(prs, "Executive Summary")
+        add_metrics_slide(
+            prs,
+            "Executive Summary — reference KPIs",
+            [
+                ("Network availability", "99.58%", RGB_GREEN),
+                ("Downtime (enterprise)", "412.7M sec", RGB_GREEN),
+                ("Outage events", "2,847", RGB_ORANGE),
+                ("Outage minutes", "428K", RGB_ORANGE),
+                ("Customer minutes", "18.2M", RGB_MAGENTA),
+                ("Impacted subscribers", "512K", RGB_MAGENTA),
+            ],
+        )
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Executive Summary", tmp, seq)
+            add_chart_slide(
+                prs,
+                "Executive Summary",
+                "Availability — Summary categories",
+                fig_stacked_h_bar(
+                    "Availability — Summary categories",
+                    [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
+                    height=140,
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Executive Summary",
+                "COTTR — Summary categories",
+                fig_stacked_h_bar(
+                    "COTTR — Summary categories",
+                    [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
+                    height=140,
+                ),
+                tmp,
+                seq,
+            )
 
-    add_bullet_slide(
-        prs,
-        "Site Analysis — layout",
-        [
-            "KPI row: daily availability, downtime vs budget, outage events/minutes, customer minutes, impacted subs.",
-            "Charts: Availability summary + focus; COTTR summary + focus (horizontal stacked 100% bars).",
-            "Tables: Field Ops assignment groups and managers (Down, Avail%, budget bar, variance, site counts).",
-            "Color language: green availability, pink/red downtime and over-budget, orange operational load.",
-        ],
-    )
+        # --- Site Analysis ---
+        add_section_slide(prs, "Site Analysis")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Site Analysis", tmp, seq)
+            add_chart_slide(
+                prs,
+                "Site Analysis",
+                "Availability — Summary categories",
+                fig_stacked_h_bar(
+                    "Availability — Summary categories",
+                    [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Site Analysis",
+                "Availability — Focus categories",
+                fig_stacked_h_bar(
+                    "Availability — Focus categories",
+                    [
+                        ("Transport-AAV", 54, GRAY),
+                        ("Site Mod", 22, PINK),
+                        ("Maintenance", 8, PINK_DEEP),
+                        ("Decommission", 7, "#7f1d1d"),
+                        ("Other", 9, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Site Analysis",
+                "COTTR — Summary categories",
+                fig_stacked_h_bar(
+                    "COTTR — Summary categories",
+                    [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Site Analysis",
+                "COTTR — Focus categories",
+                fig_stacked_h_bar(
+                    "COTTR — Focus categories",
+                    [
+                        ("Transport-AAV", 64, GRAY),
+                        ("Site Mod", 12, PINK),
+                        ("Maintenance", 10, PINK_DEEP),
+                        ("Decommission", 6, "#7f1d1d"),
+                        ("Other", 8, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
 
-    add_bullet_slide(
-        prs,
-        "Region & area views",
-        [
-            "Region Availability: horizontal bars of availability % by region; compare South vs Northeast mix.",
-            "Area Availability: market-level bars (e.g., West), focus category charts, market downtime table.",
-            "Intended use: identify which geography drives enterprise misses before opening Site Analysis.",
-        ],
-    )
+        # --- Region Availability ---
+        add_section_slide(prs, "Region Availability")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Region Availability", tmp, seq)
+            add_chart_slide(
+                prs,
+                "Region Availability",
+                "Availability % by region (weighted)",
+                fig_region_avail_bars(
+                    "Trailing 30 days (weighted)",
+                    [
+                        ("South", 99.612),
+                        ("Mid-Atlantic", 99.523),
+                        ("Northeast", 99.541),
+                        ("West", 99.498),
+                        ("Central", 99.455),
+                    ],
+                    height=300,
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Region Availability",
+                "South — summary categories",
+                fig_stacked_h_bar(
+                    "South — summary",
+                    [("Transport", 58, GRAY), ("RAN", 28, PINK), ("Power", 14, PINK_DEEP)],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Region Availability",
+                "Northeast — summary categories",
+                fig_stacked_h_bar(
+                    "Northeast — summary",
+                    [("Transport", 64, GRAY), ("RAN", 24, PINK), ("Power", 12, PINK_DEEP)],
+                ),
+                tmp,
+                seq,
+            )
 
-    add_bullet_slide(
-        prs,
-        "Detail tabs",
-        [
-            "Availability Detail: driver breakdown, vendor and RAT/technology slices, largest site drags.",
-            "COTTR Detail: time-to-restore narrative, chronic tickets, resolution and priority distributions.",
-            "Customer Minutes Detail: CM root-cause mix and highest-impact tickets/changes.",
-            "Data Diagnostics: pipeline SLA, null/dup checks, ingest trend, source QA checklist.",
-        ],
-    )
+        # --- Area Availability ---
+        add_section_slide(prs, "Area Availability")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Area Availability", tmp, seq)
+            add_chart_slide(
+                prs,
+                "Area Availability",
+                "Availability % by market (West)",
+                fig_region_avail_bars(
+                    "Top markets by population weight",
+                    [
+                        ("Houston", 99.582),
+                        ("Dallas", 99.541),
+                        ("Phoenix", 99.498),
+                        ("Denver", 99.455),
+                        ("Seattle", 99.521),
+                        ("Portland", 99.389),
+                    ],
+                    height=320,
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Area Availability",
+                "Availability — focus",
+                fig_stacked_h_bar(
+                    "Availability — focus",
+                    [
+                        ("Transport-AAV", 52, GRAY),
+                        ("Site Mod", 24, PINK),
+                        ("Maintenance", 9, PINK_DEEP),
+                        ("Decommission", 6, "#7f1d1d"),
+                        ("Other", 9, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Area Availability",
+                "COTTR — focus",
+                fig_stacked_h_bar(
+                    "COTTR — focus",
+                    [
+                        ("Transport-AAV", 62, GRAY),
+                        ("Site Mod", 14, PINK),
+                        ("Maintenance", 12, PINK_DEEP),
+                        ("Decommission", 5, "#7f1d1d"),
+                        ("Other", 7, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
 
-    add_bullet_slide(
-        prs,
-        "Implementation & deployment",
-        [
-            "App: app_site_level_analysis.py — Streamlit + Plotly + NumPy (sparkline data).",
-            "Repository: github.com/jvcjvcjvc-tech/streamlit-dashboards (streamlit run app_site_level_analysis.py).",
-            "Streamlit Community Cloud: set main file path to app_site_level_analysis.py; requirements.txt installs dependencies.",
-            "Next step: replace sample DataFrames with Snowflake queries or Parquet/CSV from VQTM hourly feeds.",
-        ],
-    )
+        # --- Availability Detail ---
+        add_section_slide(prs, "Availability Detail")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Availability Detail", tmp, seq)
+            for cap, segments in [
+                (
+                    "Availability — summary",
+                    [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
+                ),
+                (
+                    "Availability — focus",
+                    [
+                        ("Transport-AAV", 54, GRAY),
+                        ("Site Mod", 22, PINK),
+                        ("Maintenance", 8, PINK_DEEP),
+                        ("Decommission", 7, "#7f1d1d"),
+                        ("Other", 9, "#4b5563"),
+                    ],
+                ),
+                (
+                    "Top drag — vendor slice",
+                    [("Vendor A", 44, GRAY), ("Vendor B", 31, PINK), ("Vendor C", 18, PINK_DEEP), ("Other", 7, "#4b5563")],
+                ),
+                (
+                    "Technology slice",
+                    [("LTE", 48, GRAY), ("5G NR", 35, PINK), ("Legacy", 17, PINK_DEEP)],
+                ),
+            ]:
+                add_chart_slide(
+                    prs,
+                    "Availability Detail",
+                    cap,
+                    fig_stacked_h_bar(cap, segments),
+                    tmp,
+                    seq,
+                )
 
-    add_bullet_slide(
-        prs,
-        "Summary",
-        [
-            "End-to-end storyboard from executive KPIs through regional, market, and diagnostic depth.",
-            "Consistent visual system matches dark operations dashboards and T-Mobile-style magenta accents.",
-            "Ready for stakeholder walkthrough; data binding is the remaining production task.",
-        ],
-    )
+        # --- COTTR Detail ---
+        add_section_slide(prs, "COTTR Detail")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "COTTR Detail", tmp, seq)
+            for cap, segments in [
+                ("COTTR — summary", [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")]),
+                (
+                    "COTTR — focus",
+                    [
+                        ("Transport-AAV", 64, GRAY),
+                        ("Site Mod", 12, PINK),
+                        ("Maintenance", 10, PINK_DEEP),
+                        ("Decommission", 6, "#7f1d1d"),
+                        ("Other", 8, "#4b5563"),
+                    ],
+                ),
+                (
+                    "COTTR — by resolution",
+                    [("Remote", 38, GRAY), ("Dispatch", 34, PINK), ("Vendor", 21, PINK_DEEP), ("Other", 7, "#4b5563")],
+                ),
+                ("COTTR — priority", [("P1", 22, PINK_DEEP), ("P2", 41, PINK), ("P3", 28, GRAY), ("P4", 9, "#4b5563")]),
+            ]:
+                add_chart_slide(prs, "COTTR Detail", cap, fig_stacked_h_bar(cap, segments), tmp, seq)
 
-    add_title_slide(prs, "Thank you", "Site-Level Analysis Dashboard documentation")
+        # --- Customer Minutes Detail ---
+        add_section_slide(prs, "Customer Minutes Detail")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Customer Minutes Detail", tmp, seq)
+            add_chart_slide(
+                prs,
+                "Customer Minutes Detail",
+                "CM — summary drivers",
+                fig_stacked_h_bar(
+                    "CM — summary drivers",
+                    [("Transport", 58, GRAY), ("RAN", 28, PINK), ("Power / other", 14, PINK_DEEP)],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Customer Minutes Detail",
+                "CM — focus drivers",
+                fig_stacked_h_bar(
+                    "CM — focus drivers",
+                    [
+                        ("Transport-AAV", 51, GRAY),
+                        ("Site Mod", 21, PINK),
+                        ("Maintenance", 11, PINK_DEEP),
+                        ("Decommission", 9, "#7f1d1d"),
+                        ("Other", 8, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
 
-    out = Path(__file__).resolve().parent / "Site_Level_Analysis_Dashboard.pptx"
-    prs.save(str(out))
-    print(f"Saved: {out}")
+        # --- Data Diagnostics ---
+        add_section_slide(prs, "Data Diagnostics")
+        if export_ok:
+            add_sparkline_grid_slide(prs, "Data Diagnostics", tmp, seq)
+            add_wide_spark_slide(
+                prs,
+                "Data Diagnostics",
+                "Ingest volume trend (sample)",
+                fig_sparkline(GREEN, n=36, seed=42),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Data Diagnostics",
+                "Rows by region (%)",
+                fig_stacked_h_bar(
+                    "Rows by region (%)",
+                    [
+                        ("South", 28, GRAY),
+                        ("NE", 22, PINK),
+                        ("West", 20, PINK_DEEP),
+                        ("Central", 18, "#7f1d1d"),
+                        ("Other", 12, "#4b5563"),
+                    ],
+                ),
+                tmp,
+                seq,
+            )
+            add_chart_slide(
+                prs,
+                "Data Diagnostics",
+                "Late arrivals (> 4h)",
+                fig_stacked_h_bar(
+                    "Late arrivals (> 4h)",
+                    [("On time", 94, GREEN), ("Late", 6, PINK)],
+                ),
+                tmp,
+                seq,
+            )
+
+        add_bullet_slide(
+            prs,
+            "Implementation",
+            [
+                "Streamlit app: app_site_level_analysis.py",
+                "Shared Plotly builders: site_level_charts.py",
+                "Deploy: Streamlit Community Cloud + GitHub streamlit-dashboards",
+            ],
+        )
+
+        add_title_slide(prs, "Thank you", "Site-Level Analysis — charts & documentation")
+
+        base = Path(__file__).resolve().parent / "Site_Level_Analysis_Dashboard.pptx"
+        out = base
+        try:
+            prs.save(str(out))
+        except OSError:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out = base.with_name(f"Site_Level_Analysis_Dashboard_{ts}.pptx")
+            prs.save(str(out))
+            print(f"(Default file locked; saved alternate path.)")
+        print(f"Saved: {out}")
 
 
 if __name__ == "__main__":

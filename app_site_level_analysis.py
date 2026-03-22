@@ -6,9 +6,23 @@ Site-Level Analysis dashboard — Streamlit recreation of the network ops view
 """
 from __future__ import annotations
 
-import numpy as np
-import plotly.graph_objects as go
 import streamlit as st
+
+from site_level_charts import (
+    GRAY,
+    GREEN,
+    ORANGE,
+    PINK,
+    PINK_DEEP,
+    RED,
+    TEXT_MUTED,
+    fig_region_avail_bars,
+    fig_sparkline,
+    fig_sparkline_green,
+    fig_sparkline_orange,
+    fig_sparkline_pink,
+    fig_stacked_h_bar,
+)
 
 st.set_page_config(
     page_title="Site-Level Analysis",
@@ -19,13 +33,6 @@ st.set_page_config(
 
 COL_BG = "#0b0e14"
 COL_BORDER = "rgba(255,255,255,0.08)"
-GREEN = "#00d9a5"
-ORANGE = "#f77f00"
-PINK = "#e94560"
-PINK_DEEP = "#c73e54"
-GRAY = "#6b7280"
-RED = "#e63946"
-TEXT_MUTED = "#9ca3af"
 
 st.markdown(
     f"""
@@ -120,120 +127,13 @@ NAV_ITEMS = [
 ]
 
 
-def _hex_rgba(hex_color: str, alpha: float) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
-
-
-def _sparkline(color: str, n: int = 24, seed: int = 0) -> go.Figure:
-    rng = np.random.default_rng(seed)
-    base = np.linspace(0, 1, n)
-    ys = 0.5 + 0.35 * np.sin(base * 4) + rng.normal(0, 0.06, n)
-    ys = np.clip(ys, 0.1, 1.0)
-    fig = go.Figure(
-        go.Scatter(
-            x=list(range(n)),
-            y=ys,
-            mode="lines",
-            line=dict(color=color, width=2),
-            fill="tozeroy",
-            fillcolor=_hex_rgba(color, 0.22),
-        )
-    )
-    fig.add_hline(y=0.55, line=dict(color="rgba(255,255,255,0.25)", width=1, dash="dot"))
-    fig.update_layout(
-        height=52,
-        margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=False,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False, fixedrange=True),
-    )
-    return fig
-
-
-def _sparkline_green() -> go.Figure:
-    return _sparkline(GREEN, seed=1)
-
-
-def _sparkline_orange() -> go.Figure:
-    return _sparkline(ORANGE, seed=2)
-
-
-def _sparkline_pink() -> go.Figure:
-    return _sparkline(PINK, seed=3)
-
-
-def _stacked_h_bar(title: str, segments: list[tuple[str, float, str]], height: int = 120) -> go.Figure:
-    y = [""]
-    fig = go.Figure()
-    for name, pct, color in segments:
-        fig.add_trace(
-            go.Bar(
-                name=name,
-                x=[pct],
-                y=y,
-                orientation="h",
-                marker_color=color,
-                text=[f"{pct:.0f}%"],
-                textposition="inside",
-                insidetextfont=dict(color="white", size=11),
-                hovertemplate="%{fullData.name}: %{x:.1f}%<extra></extra>",
-            )
-        )
-    fig.update_layout(
-        barmode="stack",
-        height=height,
-        margin=dict(l=12, r=12, t=36, b=8),
-        title=dict(text=title, font=dict(size=13, color="#e5e7eb"), x=0, xanchor="left"),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-        xaxis=dict(range=[0, 100], ticksuffix="%", gridcolor="rgba(255,255,255,0.06)", zeroline=False),
-        yaxis=dict(visible=False, fixedrange=True),
-        font=dict(color=TEXT_MUTED, size=11),
-    )
-    return fig
-
-
 def _region_horizontal_avail_bars(
     title: str,
     items: list[tuple[str, float]],
     chart_key: str,
     height: int = 280,
 ) -> None:
-    names = [x[0] for x in items]
-    vals = [x[1] for x in items]
-    colors = [GREEN if v >= 99.5 else ORANGE if v >= 99.0 else PINK for v in vals]
-    fig = go.Figure(
-        go.Bar(
-            x=vals,
-            y=names,
-            orientation="h",
-            marker_color=colors,
-            text=[f"{v:.3f}%" for v in vals],
-            textposition="outside",
-            cliponaxis=False,
-        )
-    )
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=13, color="#e5e7eb"), x=0, xanchor="left"),
-        height=height,
-        margin=dict(l=12, r=48, t=36, b=8),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-        xaxis=dict(
-            range=[98.8, 100],
-            ticksuffix="%",
-            gridcolor="rgba(255,255,255,0.06)",
-            zeroline=False,
-        ),
-        yaxis=dict(autorange="reversed", fixedrange=True, tickfont=dict(size=11)),
-        font=dict(color=TEXT_MUTED, size=11),
-    )
+    fig = fig_region_avail_bars(title, items, height=height)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=chart_key)
 
 
@@ -297,7 +197,7 @@ def render_site_analysis() -> None:
             "99.55%",
             ["1/8 · 12%", "Days &lt; 99.95%"],
             GREEN,
-            _sparkline_green,
+            fig_sparkline_green,
             chart_key="sla_spark_daily_avail",
         )
     with c2:
@@ -306,7 +206,7 @@ def render_site_analysis() -> None:
             "96.3M",
             ["Budget: 32.1M", '<span style="color:#e63946">+64.2M</span>'],
             GREEN,
-            _sparkline_green,
+            fig_sparkline_green,
             chart_key="sla_spark_downtime",
         )
     with c3:
@@ -315,7 +215,7 @@ def render_site_analysis() -> None:
             "464",
             ["338 sites"],
             ORANGE,
-            _sparkline_orange,
+            fig_sparkline_orange,
             chart_key="sla_spark_outage_events",
         )
     with c4:
@@ -324,7 +224,7 @@ def render_site_analysis() -> None:
             "56.7K",
             ["338 sites"],
             ORANGE,
-            _sparkline_orange,
+            fig_sparkline_orange,
             chart_key="sla_spark_outage_min",
         )
     with c5:
@@ -333,7 +233,7 @@ def render_site_analysis() -> None:
             "1.4M",
             ["96 sites"],
             PINK,
-            _sparkline_pink,
+            fig_sparkline_pink,
             chart_key="sla_spark_cust_min",
         )
     with c6:
@@ -342,7 +242,7 @@ def render_site_analysis() -> None:
             "37.8K",
             ["96 sites"],
             PINK,
-            _sparkline_pink,
+            fig_sparkline_pink,
             chart_key="sla_spark_impacted_sub",
         )
 
@@ -350,7 +250,7 @@ def render_site_analysis() -> None:
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — Summary categories",
                 [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
             ),
@@ -359,7 +259,7 @@ def render_site_analysis() -> None:
             key="sla_bar_avail_summary",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — Focus categories",
                 [
                     ("Transport-AAV", 54, GRAY),
@@ -375,7 +275,7 @@ def render_site_analysis() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — Summary categories",
                 [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
             ),
@@ -384,7 +284,7 @@ def render_site_analysis() -> None:
             key="sla_bar_cottr_summary",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — Focus categories",
                 [
                     ("Transport-AAV", 64, GRAY),
@@ -439,7 +339,7 @@ def render_executive_summary() -> None:
             "99.58%",
             ["Target 99.95%", "Days below target: 12"],
             GREEN,
-            _sparkline_green,
+            fig_sparkline_green,
             chart_key="es_spark_network_avail",
         )
     with c2:
@@ -448,7 +348,7 @@ def render_executive_summary() -> None:
             "412.7M",
             ["Budget: 320.0M", '<span style="color:#e63946">+92.7M vs budget</span>'],
             GREEN,
-            _sparkline_green,
+            fig_sparkline_green,
             chart_key="es_spark_downtime",
         )
     with c3:
@@ -457,7 +357,7 @@ def render_executive_summary() -> None:
             "2,847",
             ["2,104 unique sites"],
             ORANGE,
-            _sparkline_orange,
+            fig_sparkline_orange,
             chart_key="es_spark_outage_events",
         )
     with c4:
@@ -466,7 +366,7 @@ def render_executive_summary() -> None:
             "428K",
             ["Enterprise total"],
             ORANGE,
-            _sparkline_orange,
+            fig_sparkline_orange,
             chart_key="es_spark_outage_min",
         )
     with c5:
@@ -475,7 +375,7 @@ def render_executive_summary() -> None:
             "18.2M",
             ["Impacted customer-min"],
             PINK,
-            _sparkline_pink,
+            fig_sparkline_pink,
             chart_key="es_spark_cust_min",
         )
     with c6:
@@ -484,7 +384,7 @@ def render_executive_summary() -> None:
             "512K",
             ["Peak day estimate"],
             PINK,
-            _sparkline_pink,
+            fig_sparkline_pink,
             chart_key="es_spark_impacted_sub",
         )
 
@@ -492,7 +392,7 @@ def render_executive_summary() -> None:
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — Summary categories",
                 [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
             ),
@@ -502,7 +402,7 @@ def render_executive_summary() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — Summary categories",
                 [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
             ),
@@ -547,17 +447,17 @@ def render_region_availability() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("Worst region avail", "99.412%", ["Northeast · MTD"], GREEN, _sparkline_green, chart_key="ra_spark_worst")
+        _kpi_block("Worst region avail", "99.412%", ["Northeast · MTD"], GREEN, fig_sparkline_green, chart_key="ra_spark_worst")
     with c2:
-        _kpi_block("Regional downtime", "412.7M", ["Σ all regions"], GREEN, _sparkline_green, chart_key="ra_spark_down")
+        _kpi_block("Regional downtime", "412.7M", ["Σ all regions"], GREEN, fig_sparkline_green, chart_key="ra_spark_down")
     with c3:
-        _kpi_block("Regions over budget", "3", ["/ 5 tracked"], ORANGE, _sparkline_orange, chart_key="ra_spark_over")
+        _kpi_block("Regions over budget", "3", ["/ 5 tracked"], ORANGE, fig_sparkline_orange, chart_key="ra_spark_over")
     with c4:
-        _kpi_block("Cross-region events", "2,847", ["Deduped"], ORANGE, _sparkline_orange, chart_key="ra_spark_events")
+        _kpi_block("Cross-region events", "2,847", ["Deduped"], ORANGE, fig_sparkline_orange, chart_key="ra_spark_events")
     with c5:
-        _kpi_block("Customer minutes", "18.2M", ["All regions"], PINK, _sparkline_pink, chart_key="ra_spark_cust")
+        _kpi_block("Customer minutes", "18.2M", ["All regions"], PINK, fig_sparkline_pink, chart_key="ra_spark_cust")
     with c6:
-        _kpi_block("Impacted subs", "512K", ["30-day"], PINK, _sparkline_pink, chart_key="ra_spark_subs")
+        _kpi_block("Impacted subs", "512K", ["30-day"], PINK, fig_sparkline_pink, chart_key="ra_spark_subs")
 
     st.markdown('<p class="section-heading">Availability % by region</p>', unsafe_allow_html=True)
     _region_horizontal_avail_bars(
@@ -576,14 +476,14 @@ def render_region_availability() -> None:
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar("South — summary", [("Transport", 58, GRAY), ("RAN", 28, PINK), ("Power", 14, PINK_DEEP)]),
+            fig_stacked_h_bar("South — summary", [("Transport", 58, GRAY), ("RAN", 28, PINK), ("Power", 14, PINK_DEEP)]),
             use_container_width=True,
             config={"displayModeBar": False},
             key="ra_bar_south_sum",
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar("Northeast — summary", [("Transport", 64, GRAY), ("RAN", 24, PINK), ("Power", 12, PINK_DEEP)]),
+            fig_stacked_h_bar("Northeast — summary", [("Transport", 64, GRAY), ("RAN", 24, PINK), ("Power", 12, PINK_DEEP)]),
             use_container_width=True,
             config={"displayModeBar": False},
             key="ra_bar_ne_sum",
@@ -617,17 +517,17 @@ def render_area_availability() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("Markets in view", "42", ["Filtered set"], GREEN, _sparkline_green, chart_key="aa_spark_mkts")
+        _kpi_block("Markets in view", "42", ["Filtered set"], GREEN, fig_sparkline_green, chart_key="aa_spark_mkts")
     with c2:
-        _kpi_block("Area avail (avg)", "99.501%", ["Weighted by cells"], GREEN, _sparkline_green, chart_key="aa_spark_avail")
+        _kpi_block("Area avail (avg)", "99.501%", ["Weighted by cells"], GREEN, fig_sparkline_green, chart_key="aa_spark_avail")
     with c3:
-        _kpi_block("Sites &lt; 99.9%", "186", ["Action queue"], ORANGE, _sparkline_orange, chart_key="aa_spark_sites")
+        _kpi_block("Sites &lt; 99.9%", "186", ["Action queue"], ORANGE, fig_sparkline_orange, chart_key="aa_spark_sites")
     with c4:
-        _kpi_block("Area downtime", "79.1M", ["West sample"], ORANGE, _sparkline_orange, chart_key="aa_spark_down")
+        _kpi_block("Area downtime", "79.1M", ["West sample"], ORANGE, fig_sparkline_orange, chart_key="aa_spark_down")
     with c5:
-        _kpi_block("Cust minutes", "3.4M", ["This area"], PINK, _sparkline_pink, chart_key="aa_spark_cust")
+        _kpi_block("Cust minutes", "3.4M", ["This area"], PINK, fig_sparkline_pink, chart_key="aa_spark_cust")
     with c6:
-        _kpi_block("Impacted subs", "94K", ["This area"], PINK, _sparkline_pink, chart_key="aa_spark_subs")
+        _kpi_block("Impacted subs", "94K", ["This area"], PINK, fig_sparkline_pink, chart_key="aa_spark_subs")
 
     st.markdown('<p class="section-heading">Availability % by market (West)</p>', unsafe_allow_html=True)
     _region_horizontal_avail_bars(
@@ -648,7 +548,7 @@ def render_area_availability() -> None:
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — focus",
                 [
                     ("Transport-AAV", 52, GRAY),
@@ -664,7 +564,7 @@ def render_area_availability() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — focus",
                 [
                     ("Transport-AAV", 62, GRAY),
@@ -695,23 +595,23 @@ def render_availability_detail() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("Avail % (detail)", "99.55%", ["Cell weighted"], GREEN, _sparkline_green, chart_key="ad_spark_avail")
+        _kpi_block("Avail % (detail)", "99.55%", ["Cell weighted"], GREEN, fig_sparkline_green, chart_key="ad_spark_avail")
     with c2:
-        _kpi_block("Downtime (sec)", "96.3M", ["Same scope as Site"], GREEN, _sparkline_green, chart_key="ad_spark_down")
+        _kpi_block("Downtime (sec)", "96.3M", ["Same scope as Site"], GREEN, fig_sparkline_green, chart_key="ad_spark_down")
     with c3:
-        _kpi_block("Planned work %", "18%", ["Of total downtime"], ORANGE, _sparkline_orange, chart_key="ad_spark_planned")
+        _kpi_block("Planned work %", "18%", ["Of total downtime"], ORANGE, fig_sparkline_orange, chart_key="ad_spark_planned")
     with c4:
-        _kpi_block("Unplanned %", "82%", ["Transport-heavy"], ORANGE, _sparkline_orange, chart_key="ad_spark_unplan")
+        _kpi_block("Unplanned %", "82%", ["Transport-heavy"], ORANGE, fig_sparkline_orange, chart_key="ad_spark_unplan")
     with c5:
-        _kpi_block("Mean restore (h)", "4.2", ["Rolling 7d"], PINK, _sparkline_pink, chart_key="ad_spark_mtr")
+        _kpi_block("Mean restore (h)", "4.2", ["Rolling 7d"], PINK, fig_sparkline_pink, chart_key="ad_spark_mtr")
     with c6:
-        _kpi_block("Repeat sites", "54", ["2+ events / 30d"], PINK, _sparkline_pink, chart_key="ad_spark_repeat")
+        _kpi_block("Repeat sites", "54", ["2+ events / 30d"], PINK, fig_sparkline_pink, chart_key="ad_spark_repeat")
 
     st.markdown('<p class="section-heading">Driver breakdown</p>', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — summary",
                 [("Transport", 61, GRAY), ("RAN", 26, PINK), ("Power", 12, PINK_DEEP)],
             ),
@@ -720,7 +620,7 @@ def render_availability_detail() -> None:
             key="ad_bar_avail_sum",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Availability — focus",
                 [
                     ("Transport-AAV", 54, GRAY),
@@ -736,7 +636,7 @@ def render_availability_detail() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Top drag — vendor slice",
                 [("Vendor A", 44, GRAY), ("Vendor B", 31, PINK), ("Vendor C", 18, PINK_DEEP), ("Other", 7, "#4b5563")],
             ),
@@ -745,7 +645,7 @@ def render_availability_detail() -> None:
             key="ad_bar_vendor",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Technology slice",
                 [("LTE", 48, GRAY), ("5G NR", 35, PINK), ("Legacy", 17, PINK_DEEP)],
             ),
@@ -769,23 +669,23 @@ def render_cottr_detail() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("COTTR index", "1.08", ["vs target 1.00"], GREEN, _sparkline_green, chart_key="cd_spark_idx")
+        _kpi_block("COTTR index", "1.08", ["vs target 1.00"], GREEN, fig_sparkline_green, chart_key="cd_spark_idx")
     with c2:
-        _kpi_block("Transport COTTR %", "76%", ["Of COTTR minutes"], GREEN, _sparkline_green, chart_key="cd_spark_trans")
+        _kpi_block("Transport COTTR %", "76%", ["Of COTTR minutes"], GREEN, fig_sparkline_green, chart_key="cd_spark_trans")
     with c3:
-        _kpi_block("RAN COTTR %", "16%", ["Of COTTR minutes"], ORANGE, _sparkline_orange, chart_key="cd_spark_ran")
+        _kpi_block("RAN COTTR %", "16%", ["Of COTTR minutes"], ORANGE, fig_sparkline_orange, chart_key="cd_spark_ran")
     with c4:
-        _kpi_block("Median TTR (h)", "3.6", ["Enterprise"], ORANGE, _sparkline_orange, chart_key="cd_spark_ttr")
+        _kpi_block("Median TTR (h)", "3.6", ["Enterprise"], ORANGE, fig_sparkline_orange, chart_key="cd_spark_ttr")
     with c5:
-        _kpi_block("Chronic tickets", "88", ["&gt; 72h open"], PINK, _sparkline_pink, chart_key="cd_spark_chronic")
+        _kpi_block("Chronic tickets", "88", ["&gt; 72h open"], PINK, fig_sparkline_pink, chart_key="cd_spark_chronic")
     with c6:
-        _kpi_block("Escalations", "124", ["7-day"], PINK, _sparkline_pink, chart_key="cd_spark_esc")
+        _kpi_block("Escalations", "124", ["7-day"], PINK, fig_sparkline_pink, chart_key="cd_spark_esc")
 
     st.markdown('<p class="section-heading">COTTR category mix</p>', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — summary",
                 [("Transport", 76, GRAY), ("RAN", 16, PINK), ("Other", 8, "#4b5563")],
             ),
@@ -794,7 +694,7 @@ def render_cottr_detail() -> None:
             key="cd_bar_sum",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — focus",
                 [
                     ("Transport-AAV", 64, GRAY),
@@ -810,7 +710,7 @@ def render_cottr_detail() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — by resolution",
                 [("Remote", 38, GRAY), ("Dispatch", 34, PINK), ("Vendor", 21, PINK_DEEP), ("Other", 7, "#4b5563")],
             ),
@@ -819,7 +719,7 @@ def render_cottr_detail() -> None:
             key="cd_bar_resolution",
         )
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "COTTR — priority",
                 [("P1", 22, PINK_DEEP), ("P2", 41, PINK), ("P3", 28, GRAY), ("P4", 9, "#4b5563")],
             ),
@@ -843,23 +743,23 @@ def render_customer_minutes_detail() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("Customer minutes", "18.2M", ["30-day enterprise"], PINK, _sparkline_pink, chart_key="cmd_spark_cm")
+        _kpi_block("Customer minutes", "18.2M", ["30-day enterprise"], PINK, fig_sparkline_pink, chart_key="cmd_spark_cm")
     with c2:
-        _kpi_block("Per 1K subs", "412", ["Normalized"], PINK, _sparkline_pink, chart_key="cmd_spark_per1k")
+        _kpi_block("Per 1K subs", "412", ["Normalized"], PINK, fig_sparkline_pink, chart_key="cmd_spark_per1k")
     with c3:
-        _kpi_block("Peak hour share", "28%", ["Of daily CM"], ORANGE, _sparkline_orange, chart_key="cmd_spark_peak")
+        _kpi_block("Peak hour share", "28%", ["Of daily CM"], ORANGE, fig_sparkline_orange, chart_key="cmd_spark_peak")
     with c4:
-        _kpi_block("VoLTE share", "61%", ["Of CM"], ORANGE, _sparkline_orange, chart_key="cmd_spark_volte")
+        _kpi_block("VoLTE share", "61%", ["Of CM"], ORANGE, fig_sparkline_orange, chart_key="cmd_spark_volte")
     with c5:
-        _kpi_block("Data share", "34%", ["Of CM"], GREEN, _sparkline_green, chart_key="cmd_spark_data")
+        _kpi_block("Data share", "34%", ["Of CM"], GREEN, fig_sparkline_green, chart_key="cmd_spark_data")
     with c6:
-        _kpi_block("Voice share", "5%", ["Of CM"], GREEN, _sparkline_green, chart_key="cmd_spark_voice")
+        _kpi_block("Voice share", "5%", ["Of CM"], GREEN, fig_sparkline_green, chart_key="cmd_spark_voice")
 
     st.markdown('<p class="section-heading">Customer impact — root cause mix</p>', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "CM — summary drivers",
                 [("Transport", 58, GRAY), ("RAN", 28, PINK), ("Power / other", 14, PINK_DEEP)],
             ),
@@ -869,7 +769,7 @@ def render_customer_minutes_detail() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "CM — focus drivers",
                 [
                     ("Transport-AAV", 51, GRAY),
@@ -899,21 +799,21 @@ def render_data_diagnostics() -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        _kpi_block("Last fact load", "OK", ["2h 14m ago"], GREEN, _sparkline_green, chart_key="dd_spark_load")
+        _kpi_block("Last fact load", "OK", ["2h 14m ago"], GREEN, fig_sparkline_green, chart_key="dd_spark_load")
     with c2:
-        _kpi_block("Freshness SLA", "98.2%", ["Met / 7d"], GREEN, _sparkline_green, chart_key="dd_spark_fresh")
+        _kpi_block("Freshness SLA", "98.2%", ["Met / 7d"], GREEN, fig_sparkline_green, chart_key="dd_spark_fresh")
     with c3:
-        _kpi_block("Hourly rows", "1.42M", ["Latest partition"], ORANGE, _sparkline_orange, chart_key="dd_spark_rows")
+        _kpi_block("Hourly rows", "1.42M", ["Latest partition"], ORANGE, fig_sparkline_orange, chart_key="dd_spark_rows")
     with c4:
-        _kpi_block("Null key rate", "0.02%", ["Below threshold"], ORANGE, _sparkline_orange, chart_key="dd_spark_null")
+        _kpi_block("Null key rate", "0.02%", ["Below threshold"], ORANGE, fig_sparkline_orange, chart_key="dd_spark_null")
     with c5:
-        _kpi_block("Dup SH keys", "0", ["Last run"], PINK, _sparkline_pink, chart_key="dd_spark_dup")
+        _kpi_block("Dup SH keys", "0", ["Last run"], PINK, fig_sparkline_pink, chart_key="dd_spark_dup")
     with c6:
-        _kpi_block("QA failures", "3", ["Open tickets"], PINK, _sparkline_pink, chart_key="dd_spark_qa")
+        _kpi_block("QA failures", "3", ["Open tickets"], PINK, fig_sparkline_pink, chart_key="dd_spark_qa")
 
     st.markdown('<p class="section-heading">Ingest volume trend</p>', unsafe_allow_html=True)
     st.plotly_chart(
-        _sparkline(GREEN, seed=42, n=36),
+        fig_sparkline(GREEN, seed=42, n=36),
         use_container_width=True,
         config={"displayModeBar": False},
         key="dd_spark_ingest",
@@ -947,7 +847,7 @@ def render_data_diagnostics() -> None:
     g1, g2 = st.columns(2)
     with g1:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Rows by region (%)",
                 [("South", 28, GRAY), ("NE", 22, PINK), ("West", 20, PINK_DEEP), ("Central", 18, "#7f1d1d"), ("Other", 12, "#4b5563")],
             ),
@@ -957,7 +857,7 @@ def render_data_diagnostics() -> None:
         )
     with g2:
         st.plotly_chart(
-            _stacked_h_bar(
+            fig_stacked_h_bar(
                 "Late arrivals (&gt; 4h)",
                 [("On time", 94, GREEN), ("Late", 6, PINK)],
             ),
