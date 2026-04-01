@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets / auth
+config_sso.json
+.streamlit/secrets.toml
+
+# Large or exported data (use CSV upload in hosted app)
+*.csv
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.cursor/
+
+# Temp uploads
+_upload_incident_rf_temp.csv

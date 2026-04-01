@@ -1,0 +1,38 @@
+{
+  "user_email": "",
+  "default_environment": "PROD",
+  "environments": {
+    "DEV": {
+      "snowflake": {
+        "account": "tmobile.west-us-2.privatelink",
+        "warehouse": "YOUR_DEV_WAREHOUSE_NAME",
+        "database": "YOUR_DEV_DATABASE_NAME",
+        "schema": "YOUR_DEV_SCHEMA_NAME"
+      }
+    },
+    "QAT": {
+      "snowflake": {
+        "account": "tmobile.west-us-2.privatelink",
+        "warehouse": "YOUR_QAT_WAREHOUSE_NAME",
+        "database": "YOUR_QAT_DATABASE_NAME",
+        "schema": "YOUR_QAT_SCHEMA_NAME"
+      }
+    },
+    "PROD": {
+      "snowflake": {
+        "account": "tmobile.west-us-2.privatelink",
+        "warehouse": "YOUR_PROD_WAREHOUSE_NAME",
+        "database": "YOUR_PROD_DATABASE_NAME",
+        "schema": "YOUR_PROD_SCHEMA_NAME"
+      }
+    }
+  },
+  "azure_ad": {
+    "tenant_id": "",
+    "client_id": "",
+    "scopes": []
+  },
+  "log_level": "INFO",
+  "note": "Optional: for Azure AD token auth run with --auth azure_ad_oauth and fill azure_ad (tenant_id, client_id, scopes from Snowflake EXTERNAL_OAUTH / Entra admin). Default browser flow: omit or use --auth snowflake_sso."
+}
+
