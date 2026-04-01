@@ -26,6 +26,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+# Streamlit Cloud: if requirements.txt install is skipped or partial, ensure plotly before charts.
+try:
+    import plotly  # noqa: F401
+except ImportError:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "plotly>=5.18.0"],
+    )
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st

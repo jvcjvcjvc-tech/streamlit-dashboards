@@ -14,6 +14,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import plotly  # noqa: F401
+except ImportError:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "plotly>=5.18.0"],
+    )
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -73,20 +80,88 @@ SLIM_COLS = [
 
 LARGE_FILE_BYTES = 80 * 1024 * 1024  # 80 MB — use slim columns
 
-# Magenta-forward chart styling (brand-adjacent)
+# Magenta-forward bar/pie colors; chart text uses blue (see finalize_chart)
 TM_MAGENTA = "#E20074"
 CHART_MAGENTAS = ("#E20074", "#EC407A", "#AD1457", "#F06292", "#C2185B", "#880E4F", "#F48FB1")
 
+# UI / chart typography — bold blue
+UI_BLUE = "#0d47a1"
+UI_BLUE_LIGHT = "#1565c0"
+CHART_FONT_BLUE = "#0d47a1"
+CHART_FONT_SIZE = 13
+CHART_TITLE_SIZE = 15
+
+
+def inject_dashboard_typography() -> None:
+    """Bold blue text across this page (main + sidebar)."""
+    st.markdown(
+        f"""
+        <style>
+          .main h1, .main h2, .main h3 {{
+            color: {UI_BLUE} !important;
+            font-weight: 700 !important;
+          }}
+          .main .stMarkdown p, .main .stMarkdown li {{
+            color: {UI_BLUE_LIGHT} !important;
+            font-weight: 600 !important;
+            font-size: 1.06rem !important;
+          }}
+          .main .stMarkdown strong {{
+            color: {UI_BLUE} !important;
+            font-weight: 700 !important;
+          }}
+          .main [data-testid="stCaptionContainer"] {{
+            color: {UI_BLUE_LIGHT} !important;
+            font-weight: 600 !important;
+          }}
+          [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
+            color: {UI_BLUE} !important;
+            font-weight: 700 !important;
+          }}
+          [data-testid="stSidebar"] .stMarkdown p,
+          [data-testid="stSidebar"] label,
+          [data-testid="stSidebar"] span {{
+            color: {UI_BLUE_LIGHT} !important;
+            font-weight: 600 !important;
+          }}
+          [data-testid="stMetricValue"] {{
+            color: {UI_BLUE} !important;
+            font-weight: 700 !important;
+          }}
+          [data-testid="stMetricLabel"] {{
+            color: {UI_BLUE_LIGHT} !important;
+            font-weight: 600 !important;
+          }}
+          .stTabs [data-baseweb="tab"] {{
+            color: {UI_BLUE} !important;
+            font-weight: 700 !important;
+            font-size: 1rem !important;
+          }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def finalize_chart(fig, height: int = 360) -> object:
-    """Apply shared layout + magenta bias to Plotly figures."""
+    """Plotly layout: magenta data colors, bold blue titles/axes/ticks."""
     fig.update_layout(
         template="plotly_white",
         height=height,
-        plot_bgcolor="#FAF7F9",
+        plot_bgcolor="#F5FAFF",
         paper_bgcolor="#FFFFFF",
-        font=dict(color="#1E1E1E", size=12),
+        font=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE, family="Arial"),
+        title_font=dict(size=CHART_TITLE_SIZE, color=CHART_FONT_BLUE, family="Arial Black"),
         colorway=list(CHART_MAGENTAS),
+        legend=dict(font=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE)),
+    )
+    fig.update_xaxes(
+        title_font=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE, family="Arial Black"),
+        tickfont=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE),
+    )
+    fig.update_yaxes(
+        title_font=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE, family="Arial Black"),
+        tickfont=dict(color=CHART_FONT_BLUE, size=CHART_FONT_SIZE),
     )
     return fig
 
@@ -166,6 +241,7 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    inject_dashboard_typography()
 
     hosted = is_hosted_streamlit_deploy()
     cloud_secret = secrets_flag_is_cloud()

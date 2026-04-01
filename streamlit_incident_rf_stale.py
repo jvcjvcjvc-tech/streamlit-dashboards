@@ -11,7 +11,16 @@ Locally:
 from __future__ import annotations
 
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
+
+try:
+    import plotly  # noqa: F401
+except ImportError:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "plotly>=5.18.0"],
+    )
 
 
 def _load_and_run() -> None:
