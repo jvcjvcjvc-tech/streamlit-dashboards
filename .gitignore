@@ -1,23 +1,51 @@
-.venv/
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# Local secrets / auth
+# Environment
+.env
+.env.local
+*.local
+
+# Local secrets / auth (incident export)
 config_sso.json
-.streamlit/secrets.toml
 
-# Large or exported data (use CSV upload in hosted app)
-*.csv
-
-# Editor / OS
-.idea/
+# IDE / OS
 .vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
 .cursor/
 
-# Temp uploads
+# Streamlit
+.streamlit/secrets.toml
+
+# Data files (keep local; Streamlit Cloud: upload CSV)
+*.csv
+!vqtm_ran_dashboard_mar2026/sample.csv
+!vqtm_cell_pcmd_demo_20260321.csv
+results_sso_*.csv
+
+# Logs / misc
+*.log
+*.js.download
+*.svg
+*.aspx
+OneShell
+
+# Temp uploads (incident dashboard)
 _upload_incident_rf_temp.csv

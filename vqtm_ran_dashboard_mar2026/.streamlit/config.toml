@@ -1,0 +1,4 @@
+# Large Snowflake extracts (~800MB) need a higher limit for file upload mode.
+# https://docs.streamlit.io/develop/api-reference/configuration/config.toml
+[server]
+maxUploadSize = 1200

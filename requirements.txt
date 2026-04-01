@@ -1,21 +1,12 @@
-# Snowflake Query Execution Agent with SSO Authentication
-# Minimal dependencies required for SSO authentication
-
-# Snowflake connector (supports Python 3.8+)
-snowflake-connector-python>=3.0.0
-
-# Data manipulation and CSV export
-pandas>=1.2.0
-
-# Arrow format for better performance (optional but recommended)
+# Streamlit dashboards + Snowflake export (RF incident + streamlit-dashboards repo)
+streamlit>=1.32.0
+snowflake-connector-python>=3.6.0
+pandas>=2.0.0
+numpy>=1.24.0
 pyarrow>=10.0.0
-
-# Azure AD OAuth token flow (optional; use with --auth azure_ad_oauth)
-msal>=1.24.0
-
-# Streamlit dashboard (optional)
-streamlit>=1.28.0
+matplotlib>=3.7.0
 plotly>=5.18.0
-
-# PowerPoint deck generator (build_incident_open_deck.py)
+kaleido>=0.2.1
+python-dotenv>=1.0.0
+msal>=1.24.0
 python-pptx>=0.6.21
