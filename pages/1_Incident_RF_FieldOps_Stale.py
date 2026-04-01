@@ -73,6 +73,23 @@ SLIM_COLS = [
 
 LARGE_FILE_BYTES = 80 * 1024 * 1024  # 80 MB — use slim columns
 
+# Magenta-forward chart styling (brand-adjacent)
+TM_MAGENTA = "#E20074"
+CHART_MAGENTAS = ("#E20074", "#EC407A", "#AD1457", "#F06292", "#C2185B", "#880E4F", "#F48FB1")
+
+
+def finalize_chart(fig, height: int = 360) -> object:
+    """Apply shared layout + magenta bias to Plotly figures."""
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        plot_bgcolor="#FAF7F9",
+        paper_bgcolor="#FFFFFF",
+        font=dict(color="#1E1E1E", size=12),
+        colorway=list(CHART_MAGENTAS),
+    )
+    return fig
+
 
 def _env_truthy(name: str) -> bool:
     v = os.environ.get(name)
@@ -281,30 +298,50 @@ def main() -> None:
         c1, c2 = st.columns(2)
         with c1:
             vc = report_f.value_counts()
-            st.plotly_chart(
-                px.pie(names=vc.index, values=vc.values, title="Report type"),
-                use_container_width=True,
+            fig_p1 = px.pie(
+                names=vc.index,
+                values=vc.values,
+                title="Report type",
+                color_discrete_sequence=list(CHART_MAGENTAS),
             )
+            finalize_chart(fig_p1)
+            st.plotly_chart(fig_p1, use_container_width=True)
         with c2:
             vc = grp_cat_f.value_counts().head(14)
-            st.plotly_chart(
-                px.bar(x=vc.index, y=vc.values, title="Group category (top 14)"),
-                use_container_width=True,
+            fig_p2 = px.bar(
+                x=vc.index,
+                y=vc.values,
+                title="Group category (top 14)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
+            finalize_chart(fig_p2)
+            fig_p2.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_p2, use_container_width=True)
         c3, c4 = st.columns(2)
         with c3:
             vc = region_f.value_counts().head(16)
-            st.plotly_chart(
-                px.bar(x=vc.values, y=vc.index, orientation="h", title="Region (top 16)"),
-                use_container_width=True,
+            fig_p3 = px.bar(
+                x=vc.values,
+                y=vc.index,
+                orientation="h",
+                title="Region (top 16)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
+            finalize_chart(fig_p3)
+            fig_p3.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_p3, use_container_width=True)
         with c4:
             src = col(dff, "SOURCE", "source").fillna("(blank)").astype(str)
             vc = src.value_counts().head(12)
-            st.plotly_chart(
-                px.bar(x=vc.index, y=vc.values, title="Channel / source (top 12)"),
-                use_container_width=True,
+            fig_p4 = px.bar(
+                x=vc.index,
+                y=vc.values,
+                title="Channel / source (top 12)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
+            finalize_chart(fig_p4)
+            fig_p4.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_p4, use_container_width=True)
 
         lat_c = "S_SITE_LATITUDE" if "S_SITE_LATITUDE" in dff.columns else None
         lon_c = "S_SITE_LONGITUDE" if "S_SITE_LONGITUDE" in dff.columns else None
@@ -324,8 +361,10 @@ def main() -> None:
                     hover_name=hover_col,
                     zoom=3,
                     title="Incidents by site coordinates (where present)",
+                    color_discrete_sequence=list(CHART_MAGENTAS),
                 )
-                fig_map.update_layout(height=440, margin=dict(t=40))
+                finalize_chart(fig_map, height=440)
+                fig_map.update_layout(margin=dict(t=40))
                 st.plotly_chart(fig_map, use_container_width=True)
 
     with tab2:
@@ -336,54 +375,88 @@ def main() -> None:
                 x="DAYS_OPEN",
                 nbins=40,
                 title="Days open (open tickets only)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
             fig_h.update_layout(yaxis_title="Count", showlegend=False)
+            finalize_chart(fig_h)
+            fig_h.update_traces(marker_color=TM_MAGENTA)
             st.plotly_chart(fig_h, use_container_width=True)
         c1, c2 = st.columns(2)
         with c1:
             bucket = col(dff, "LDT_OPEN_2", "ldt_open_2").fillna("(blank)").astype(str)
             vc = bucket.value_counts().head(15)
-            st.plotly_chart(
-                px.bar(x=vc.values, y=vc.index, orientation="h", title="Open-ticket aging bucket (LDT_OPEN_2)"),
-                use_container_width=True,
+            fig_b1 = px.bar(
+                x=vc.values,
+                y=vc.index,
+                orientation="h",
+                title="Open-ticket aging bucket (LDT_OPEN_2)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
+            finalize_chart(fig_b1)
+            fig_b1.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_b1, use_container_width=True)
         with c2:
-            sd = stale_days_f.dropna()
-            if len(sd) > 0:
-                fig_s = px.histogram(
-                    pd.DataFrame({"DAYS_SINCE_LAST_NOTE": sd}),
-                    x="DAYS_SINCE_LAST_NOTE",
-                    nbins=30,
-                    title="Days since last note (where date present)",
+            mkt_name = col(dff, "MARKETNAME", "marketname").fillna("(No market)").astype(str)
+            stale_df = pd.DataFrame({"MARKET_NAME": mkt_name, "DAYS_SINCE_LAST_NOTE": stale_days_f})
+            stale_df = stale_df.dropna(subset=["DAYS_SINCE_LAST_NOTE"])
+            if len(stale_df) > 0:
+                n_markets = st.slider("Markets to show (by median days)", 5, 40, 20, key="mkt_stale_n")
+                g = (
+                    stale_df.groupby("MARKET_NAME", as_index=False)["DAYS_SINCE_LAST_NOTE"]
+                    .median()
+                    .sort_values("DAYS_SINCE_LAST_NOTE", ascending=False)
+                    .head(int(n_markets))
                 )
-                fig_s.update_layout(yaxis_title="Count", showlegend=False)
+                fig_s = px.bar(
+                    g,
+                    x="MARKET_NAME",
+                    y="DAYS_SINCE_LAST_NOTE",
+                    title="Median days since last note by market",
+                    color_discrete_sequence=[TM_MAGENTA],
+                )
+                fig_s.update_xaxes(title="Market name", tickangle=-40)
+                fig_s.update_yaxes(title="Median days since last note")
+                finalize_chart(fig_s)
+                fig_s.update_traces(marker_line_width=0)
                 st.plotly_chart(fig_s, use_container_width=True)
+                st.caption("Rows without a parsed LAST_NOTE_DT are excluded.")
             else:
-                st.info("No parsed LAST_NOTE_DT values for histogram.")
+                st.info("No parsed LAST_NOTE_DT values — cannot chart by market.")
 
     with tab3:
         c1, c2 = st.columns(2)
         with c1:
             vc = pri_f.value_counts().head(12)
-            st.plotly_chart(
-                px.bar(x=vc.index, y=vc.values, title="Priority (top 12)"),
-                use_container_width=True,
+            fig_t3a = px.bar(
+                x=vc.index,
+                y=vc.values,
+                title="Priority (top 12)",
+                color_discrete_sequence=[TM_MAGENTA],
             )
+            finalize_chart(fig_t3a)
+            fig_t3a.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_t3a, use_container_width=True)
         with c2:
             auto = pd.to_numeric(col(dff, "AUTO_CLOSE", "auto_close"), errors="coerce").fillna(0)
-            st.plotly_chart(
-                px.pie(
-                    names=["Manual/other", "Auto-close pattern"],
-                    values=[int((auto == 0).sum()), int((auto != 0).sum())],
-                    title="RESOLVED_BY SVC_PRD_ flag (AUTO_CLOSE)",
-                ),
-                use_container_width=True,
+            fig_t3b = px.pie(
+                names=["Manual/other", "Auto-close pattern"],
+                values=[int((auto == 0).sum()), int((auto != 0).sum())],
+                title="RESOLVED_BY SVC_PRD_ flag (AUTO_CLOSE)",
+                color_discrete_sequence=[TM_MAGENTA, CHART_MAGENTAS[2]],
             )
+            finalize_chart(fig_t3b)
+            st.plotly_chart(fig_t3b, use_container_width=True)
         vc_a = assign_f.value_counts().head(20)
-        st.plotly_chart(
-            px.bar(x=vc_a.values, y=vc_a.index, orientation="h", title="Top assignment groups"),
-            use_container_width=True,
+        fig_t3c = px.bar(
+            x=vc_a.values,
+            y=vc_a.index,
+            orientation="h",
+            title="Top assignment groups",
+            color_discrete_sequence=[TM_MAGENTA],
         )
+        finalize_chart(fig_t3c)
+        fig_t3c.update_traces(marker_line_width=0)
+        st.plotly_chart(fig_t3c, use_container_width=True)
 
     with tab4:
         q = st.text_input("Filter (contains, any shown column)", "")

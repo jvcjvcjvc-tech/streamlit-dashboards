@@ -1,10 +1,26 @@
--- Incident extract (RF / Field Ops / Switch) with latest note activity.
--- Group/category from BDM_NDW_IDENTIFY_MANAGEMENT_DB.PROFILEMANAGER_V.V_GROUP (column CATEGORY).
--- Fixed: REGEXP_REPLACE closing pattern, Snowflake DATEDIFF units.
--- Filter: no qualifying work note, or last qualifying note older than 30 days (see WHERE).
--- Also: **active only** — exclude resolved/closed/canceled (they would still match stale-note logic without this).
--- MKT_* comes from ring/site tracker only (legacy GROUPS.GROUP_MARKET not on V_GROUP).
+"""
+Snowflake export: RF / Field Ops / Switch incidents with stale work notes
+(no qualifying note in window, or last note > 30 days).
 
+Uses config_sso.json + browser SSO (or --auth azure_ad_oauth).
+
+Usage:
+  .venv\\Scripts\\python.exe export_incident_rf_stale_notes.py
+  .venv\\Scripts\\python.exe export_incident_rf_stale_notes.py --out my_export.csv --env PROD
+
+To use the .sql file instead of the embedded query:
+  .venv\\Scripts\\python.exe export_incident_rf_stale_notes.py --sql-file incident_rf_fieldops_switch_notes.sql
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+# Embedded query (keep in sync with incident_rf_fieldops_switch_notes.sql if you maintain both).
+INCIDENT_EXTRACT_SQL = r"""
 WITH TIX AS (
     SELECT DISTINCT inc.INCIDENT_NUMBER
     FROM BDM_ITSM_REPORTING_DB.SN_ITSM_REPORTING_V.V_INCIDENT_ALL INC
@@ -24,7 +40,6 @@ LatestNotes AS (
     FROM BDM_ITSM_REPORTING_DB.SN_ITSM_REPORTING_V.V_INCIDENT_NOTES N
     WHERE N.SYS_CREATED_ON BETWEEN DATEADD('year', -2, CURRENT_DATE) AND CURRENT_DATE
       AND N.SYS_CREATED_BY NOT ILIKE '%SVC_PRD_ITSM_INT%'
-      -- AND N.INCIDENT_NUMBER ILIKE '%INC%'
     GROUP BY N.INCIDENT_NUMBER
 ),
 NotesWithActivity AS (
@@ -52,7 +67,6 @@ FilteredNotesWithActivity AS (
         MAX_CREATED_ON
     FROM NotesWithActivity N
     WHERE RN = 1
-      -- AND N.INCIDENT_NUMBER ILIKE '%INC%'
 )
 SELECT DISTINCT
     CASE
@@ -213,4 +227,69 @@ WHERE (
       'CANCELED',
       'CANCELLED',
       'TERMINATED'
-  );
+  )
+""".strip()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Export RF Field Ops / Switch incident stale-notes from Snowflake.")
+    parser.add_argument(
+        "--sql-file",
+        type=Path,
+        default=None,
+        help="Read query from this file instead of embedded SQL",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=HERE / "incident_rf_fieldops_stale_notes.csv",
+        help="Output CSV path",
+    )
+    parser.add_argument("--config", "-c", type=Path, default=HERE / "config_sso.json")
+    parser.add_argument("--user", "-u", dest="user_email", default=None)
+    parser.add_argument("--env", "-e", choices=["DEV", "QAT", "PROD", "PROD_PCMD"], default=None)
+    parser.add_argument("--auth", choices=["snowflake_sso", "azure_ad_oauth"], default="snowflake_sso")
+    args = parser.parse_args()
+
+    from simple_agent_with_sso_auth import (
+        AUTH_AZURE_AD_OAUTH,
+        AUTH_SNOWFLAKE_SSO,
+        run_query_with_sso,
+    )
+
+    import tempfile
+
+    auth = AUTH_AZURE_AD_OAUTH if args.auth == "azure_ad_oauth" else AUTH_SNOWFLAKE_SSO
+    tmp_created: Path | None = None
+
+    if args.sql_file:
+        if not args.sql_file.is_file():
+            print(f"SQL file not found: {args.sql_file}", file=sys.stderr)
+            sys.exit(1)
+        query_path = args.sql_file.resolve()
+    else:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".sql",
+            delete=False,
+            encoding="utf-8",
+        ) as tmp:
+            tmp.write(INCIDENT_EXTRACT_SQL)
+            tmp_created = Path(tmp.name)
+        query_path = tmp_created
+    try:
+        run_query_with_sso(
+            str(query_path),
+            config_file=str(args.config.resolve()),
+            output_file=str(args.out.resolve()),
+            user_email=args.user_email,
+            environment=args.env,
+            auth_method=auth,
+        )
+    finally:
+        if tmp_created is not None:
+            tmp_created.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    main()
