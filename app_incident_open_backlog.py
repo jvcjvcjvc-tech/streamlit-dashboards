@@ -148,6 +148,10 @@ def main() -> None:
     st.sidebar.text_input("CSV path", key="csv_path")
     uploaded = st.sidebar.file_uploader("Or upload CSV", type=["csv"])
 
+    if st.sidebar.button("Clear Cache & Reload"):
+        st.cache_data.clear()
+        st.rerun()
+
     refresh_disabled = hosted or not SQL_FILE.is_file() or not AGENT.is_file()
     if st.sidebar.button("Refresh from Snowflake (SSO)", disabled=refresh_disabled,
                          help="Run SQL query via SSO authentication"):
@@ -164,6 +168,8 @@ def main() -> None:
     if uploaded is not None:
         df = pd.read_csv(uploaded, low_memory=False)
         data_label = uploaded.name
+        st.sidebar.info(f"Uploaded: {uploaded.name}")
+        st.sidebar.write("Columns found:", list(df.columns)[:10], "...")
     else:
         csv_path = st.session_state.get("csv_path", "")
         p = Path(csv_path.strip()) if csv_path.strip() else Path("")
@@ -176,14 +182,24 @@ def main() -> None:
         st.sidebar.metric("File size", f"{p.stat().st_size / (1024**2):,.1f} MB")
 
     st.sidebar.metric("Total rows", f"{len(df):,}")
+    st.sidebar.metric("Columns", f"{len(df.columns)}")
+    
+    # Debug: Show market column info
+    if "MARKET_ID" in df.columns:
+        non_null = df["MARKET_ID"].notna().sum()
+        st.sidebar.success(f"Markets: {non_null:,} rows have data")
+    else:
+        st.sidebar.error("MARKET_ID column NOT found!")
+        st.sidebar.write("Columns:", list(df.columns))
     
     df["_DAYS_OPEN"] = calculate_days_open(df)
 
     state = col(df, "STATE", "state").fillna("(blank)").astype(str)
-    category = col(df, "CATEGORY", "GROUP_CATEGORY").fillna("(blank)").astype(str)
+    group_category = col(df, "GROUP_CATEGORY").fillna("(blank)").astype(str)
+    inc_category = col(df, "CATEGORY").fillna("(blank)").astype(str)
     priority = col(df, "PRIORITY", "priority").fillna("(blank)").astype(str)
     assignment_group = col(df, "ASSIGNMENT_GROUP", "assignment_group").fillna("(blank)").astype(str)
-    market = col(df, "M_MARKET_ABBREVATION", "MARKET_NAME").fillna("(No market)").astype(str)
+    market = col(df, "MARKET_ID", "M_MARKET_ABBREVATION", "MARKET_NAME").fillna("(No market)").astype(str)
     region = col(df, "RGN_RGN_ABBRV", "M_AREA", "REGION_NAME").fillna("(No region)").astype(str)
 
     st.sidebar.subheader("Filters")
@@ -191,13 +207,13 @@ def main() -> None:
     state_opts = sorted(state.unique())
     sel_state = st.sidebar.multiselect("State", options=state_opts, default=state_opts)
     
-    cat_opts = sorted([c for c in category.unique() if c != "(blank)"])
-    sel_cat = st.sidebar.multiselect("Category (RF/Field Ops/Switch)", options=cat_opts, default=cat_opts)
+    grp_cat_opts = sorted([c for c in group_category.unique() if c != "(blank)"])
+    sel_grp_cat = st.sidebar.multiselect("Group (RF/Field Ops/Switch)", options=grp_cat_opts, default=grp_cat_opts)
     
     pri_opts = sorted(priority.unique())
     sel_pri = st.sidebar.multiselect("Priority", options=pri_opts, default=pri_opts)
 
-    mask = state.isin(sel_state) & category.isin(sel_cat) & priority.isin(sel_pri)
+    mask = state.isin(sel_state) & group_category.isin(sel_grp_cat) & priority.isin(sel_pri)
     dff = df.loc[mask].copy()
 
     m1, m2, m3, m4, m5 = st.columns(5)
@@ -219,8 +235,8 @@ def main() -> None:
         with c1:
             vc = state.loc[mask].value_counts()
             fig_state = px.pie(
-                names=vc.index,
-                values=vc.values,
+                names=list(vc.index),
+                values=list(vc.values),
                 title="Incidents by State",
                 color_discrete_sequence=list(CHART_MAGENTAS),
             )
@@ -228,11 +244,11 @@ def main() -> None:
             st.plotly_chart(fig_state, use_container_width=True)
         
         with c2:
-            vc = category.loc[mask].value_counts()
+            vc = group_category.loc[mask].value_counts()
             fig_cat = px.bar(
-                x=vc.index,
-                y=vc.values,
-                title="Incidents by Category",
+                x=list(vc.index),
+                y=list(vc.values),
+                title="Incidents by Group Category",
                 color_discrete_sequence=[TM_MAGENTA],
             )
             finalize_chart(fig_cat)
@@ -243,8 +259,8 @@ def main() -> None:
         with c3:
             vc = priority.loc[mask].value_counts().head(10)
             fig_pri = px.bar(
-                x=vc.index,
-                y=vc.values,
+                x=list(vc.index),
+                y=list(vc.values),
                 title="Incidents by Priority",
                 color_discrete_sequence=[TM_MAGENTA],
             )
@@ -255,8 +271,8 @@ def main() -> None:
             mkt = market.loc[mask]
             vc = mkt.value_counts().head(15)
             fig_mkt = px.bar(
-                x=vc.values,
-                y=vc.index,
+                x=list(vc.values),
+                y=list(vc.index),
                 orientation="h",
                 title="Top 15 Markets by Incident Count",
                 color_discrete_sequence=[TM_MAGENTA],
@@ -284,8 +300,8 @@ def main() -> None:
             dff["_AGE_BUCKET"] = pd.cut(dff["_DAYS_OPEN"], bins=bins, labels=labels, right=True)
             vc = dff["_AGE_BUCKET"].value_counts().reindex(labels)
             fig_bucket = px.bar(
-                x=vc.index,
-                y=vc.values,
+                x=list(vc.index),
+                y=list(vc.values),
                 title="Incidents by Aging Bucket",
                 color_discrete_sequence=[TM_MAGENTA],
             )
@@ -322,8 +338,8 @@ def main() -> None:
             ag = assignment_group.loc[mask]
             vc = ag.value_counts().head(20)
             fig_ag = px.bar(
-                x=vc.values,
-                y=vc.index,
+                x=list(vc.values),
+                y=list(vc.index),
                 orientation="h",
                 title="Top 20 Assignment Groups",
                 color_discrete_sequence=[TM_MAGENTA],
@@ -335,8 +351,8 @@ def main() -> None:
             assigned_to = col(dff, "ASSIGNED_TO", "assigned_to").fillna("(Unassigned)").astype(str)
             vc = assigned_to.value_counts().head(20)
             fig_user = px.bar(
-                x=vc.values,
-                y=vc.index,
+                x=list(vc.values),
+                y=list(vc.index),
                 orientation="h",
                 title="Top 20 Assigned Users",
                 color_discrete_sequence=[TM_MAGENTA],
