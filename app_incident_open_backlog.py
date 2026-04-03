@@ -217,15 +217,21 @@ def main() -> None:
     st.sidebar.subheader("Filters")
     
     state_opts = sorted(state.unique())
-    sel_state = st.sidebar.multiselect("State", options=state_opts, default=state_opts)
+    sel_state = st.sidebar.multiselect("State", options=state_opts, default=state_opts if state_opts else [])
     
-    grp_cat_opts = sorted([c for c in group_category.unique() if c != "(blank)"])
-    sel_grp_cat = st.sidebar.multiselect("Group (RF/Field Ops/Switch)", options=grp_cat_opts, default=grp_cat_opts)
+    grp_cat_opts = sorted([c for c in group_category.unique() if c and c != "(blank)"])
+    if not grp_cat_opts:
+        grp_cat_opts = sorted(group_category.unique())
+    sel_grp_cat = st.sidebar.multiselect("Group (RF/Field Ops/Switch)", options=grp_cat_opts, default=grp_cat_opts if grp_cat_opts else [])
     
     pri_opts = sorted(priority.unique())
-    sel_pri = st.sidebar.multiselect("Priority", options=pri_opts, default=pri_opts)
+    sel_pri = st.sidebar.multiselect("Priority", options=pri_opts, default=pri_opts if pri_opts else [])
 
-    mask = state.isin(sel_state) & group_category.isin(sel_grp_cat) & priority.isin(sel_pri)
+    # Build filter mask - handle empty selections
+    if sel_state and sel_grp_cat and sel_pri:
+        mask = state.isin(sel_state) & group_category.isin(sel_grp_cat) & priority.isin(sel_pri)
+    else:
+        mask = pd.Series([True] * len(df), index=df.index)
     dff = df.loc[mask].copy()
 
     m1, m2, m3, m4, m5 = st.columns(5)
@@ -242,149 +248,165 @@ def main() -> None:
     tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Aging Analysis", "Assignment Groups", "Data Table"])
 
     with tab1:
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            vc = state.loc[mask].value_counts()
-            fig_state = px.pie(
-                names=list(vc.index),
-                values=list(vc.values),
-                title="Incidents by State",
-                color_discrete_sequence=list(CHART_MAGENTAS),
-            )
-            finalize_chart(fig_state)
-            st.plotly_chart(fig_state, use_container_width=True)
-        
-        with c2:
-            vc = group_category.loc[mask].value_counts()
-            fig_cat = px.bar(
-                x=list(vc.index),
-                y=list(vc.values),
-                title="Incidents by Group Category",
-                color_discrete_sequence=[TM_MAGENTA],
-            )
-            finalize_chart(fig_cat)
-            st.plotly_chart(fig_cat, use_container_width=True)
+        if len(dff) == 0:
+            st.warning("No data matches the current filters. Adjust filters in the sidebar.")
+        else:
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                vc = state.loc[mask].value_counts()
+                if len(vc) > 0:
+                    fig_state = px.pie(
+                        names=list(vc.index),
+                        values=list(vc.values),
+                        title="Incidents by State",
+                        color_discrete_sequence=list(CHART_MAGENTAS),
+                    )
+                    finalize_chart(fig_state)
+                    st.plotly_chart(fig_state, use_container_width=True)
+            
+            with c2:
+                vc = group_category.loc[mask].value_counts()
+                if len(vc) > 0:
+                    fig_cat = px.bar(
+                        x=list(vc.index),
+                        y=list(vc.values),
+                        title="Incidents by Group Category",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    finalize_chart(fig_cat)
+                    st.plotly_chart(fig_cat, use_container_width=True)
 
-        c3, c4 = st.columns(2)
-        
-        with c3:
-            vc = priority.loc[mask].value_counts().head(10)
-            fig_pri = px.bar(
-                x=list(vc.index),
-                y=list(vc.values),
-                title="Incidents by Priority",
-                color_discrete_sequence=[TM_MAGENTA],
-            )
-            finalize_chart(fig_pri)
-            st.plotly_chart(fig_pri, use_container_width=True)
-        
-        with c4:
-            mkt = market.loc[mask]
-            vc = mkt.value_counts().head(15)
-            fig_mkt = px.bar(
-                x=list(vc.values),
-                y=list(vc.index),
-                orientation="h",
-                title="Top 15 Markets by Incident Count",
-                color_discrete_sequence=[TM_MAGENTA],
-            )
-            finalize_chart(fig_mkt)
-            st.plotly_chart(fig_mkt, use_container_width=True)
+            c3, c4 = st.columns(2)
+            
+            with c3:
+                vc = priority.loc[mask].value_counts().head(10)
+                if len(vc) > 0:
+                    fig_pri = px.bar(
+                        x=list(vc.index),
+                        y=list(vc.values),
+                        title="Incidents by Priority",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    finalize_chart(fig_pri)
+                    st.plotly_chart(fig_pri, use_container_width=True)
+            
+            with c4:
+                mkt = market.loc[mask]
+                vc = mkt.value_counts().head(15)
+                if len(vc) > 0:
+                    fig_mkt = px.bar(
+                        x=list(vc.values),
+                        y=list(vc.index),
+                        orientation="h",
+                        title="Top 15 Markets by Incident Count",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    finalize_chart(fig_mkt)
+                    st.plotly_chart(fig_mkt, use_container_width=True)
 
     with tab2:
-        fig_hist = px.histogram(
-            dff,
-            x="_DAYS_OPEN",
-            nbins=50,
-            title="Distribution of Days Open",
-            color_discrete_sequence=[TM_MAGENTA],
-        )
-        fig_hist.update_layout(xaxis_title="Days Open", yaxis_title="Count")
-        finalize_chart(fig_hist, height=400)
-        st.plotly_chart(fig_hist, use_container_width=True)
-
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            bins = [0, 7, 14, 30, 60, 90, 180, float('inf')]
-            labels = ['0-7 days', '8-14 days', '15-30 days', '31-60 days', '61-90 days', '91-180 days', '180+ days']
-            dff["_AGE_BUCKET"] = pd.cut(dff["_DAYS_OPEN"], bins=bins, labels=labels, right=True)
-            vc = dff["_AGE_BUCKET"].value_counts().reindex(labels)
-            fig_bucket = px.bar(
-                x=list(vc.index),
-                y=list(vc.values),
-                title="Incidents by Aging Bucket",
+        if len(dff) == 0:
+            st.warning("No data to display.")
+        else:
+            fig_hist = px.histogram(
+                dff,
+                x="_DAYS_OPEN",
+                nbins=50,
+                title="Distribution of Days Open",
                 color_discrete_sequence=[TM_MAGENTA],
             )
-            fig_bucket.update_layout(xaxis_title="Age Bucket", yaxis_title="Count")
-            finalize_chart(fig_bucket)
-            st.plotly_chart(fig_bucket, use_container_width=True)
-        
-        with c2:
-            mkt_f = market.loc[mask]
-            age_df = pd.DataFrame({"Market": mkt_f, "Days_Open": dff["_DAYS_OPEN"]})
-            age_df = age_df.dropna()
-            if len(age_df) > 0:
-                g = (
-                    age_df.groupby("Market", as_index=False)["Days_Open"]
-                    .median()
-                    .sort_values("Days_Open", ascending=False)
-                    .head(15)
-                )
-                fig_mkt_age = px.bar(
-                    g,
-                    x="Market",
-                    y="Days_Open",
-                    title="Median Days Open by Market (Top 15)",
+            fig_hist.update_layout(xaxis_title="Days Open", yaxis_title="Count")
+            finalize_chart(fig_hist, height=400)
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                bins = [0, 7, 14, 30, 60, 90, 180, float('inf')]
+                labels = ['0-7 days', '8-14 days', '15-30 days', '31-60 days', '61-90 days', '91-180 days', '180+ days']
+                dff["_AGE_BUCKET"] = pd.cut(dff["_DAYS_OPEN"], bins=bins, labels=labels, right=True)
+                vc = dff["_AGE_BUCKET"].value_counts().reindex(labels).fillna(0)
+                fig_bucket = px.bar(
+                    x=list(vc.index.astype(str)),
+                    y=list(vc.values),
+                    title="Incidents by Aging Bucket",
                     color_discrete_sequence=[TM_MAGENTA],
                 )
-                fig_mkt_age.update_xaxes(tickangle=-45)
-                finalize_chart(fig_mkt_age)
-                st.plotly_chart(fig_mkt_age, use_container_width=True)
+                fig_bucket.update_layout(xaxis_title="Age Bucket", yaxis_title="Count")
+                finalize_chart(fig_bucket)
+                st.plotly_chart(fig_bucket, use_container_width=True)
+            
+            with c2:
+                mkt_f = market.loc[mask]
+                age_df = pd.DataFrame({"Market": mkt_f.values, "Days_Open": dff["_DAYS_OPEN"].values})
+                age_df = age_df.dropna()
+                if len(age_df) > 0:
+                    g = (
+                        age_df.groupby("Market", as_index=False)["Days_Open"]
+                        .median()
+                        .sort_values("Days_Open", ascending=False)
+                        .head(15)
+                    )
+                    fig_mkt_age = px.bar(
+                        g,
+                        x="Market",
+                        y="Days_Open",
+                        title="Median Days Open by Market (Top 15)",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    fig_mkt_age.update_xaxes(tickangle=-45)
+                    finalize_chart(fig_mkt_age)
+                    st.plotly_chart(fig_mkt_age, use_container_width=True)
 
     with tab3:
-        c1, c2 = st.columns(2)
+        if len(dff) == 0:
+            st.warning("No data to display.")
+        else:
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                ag = assignment_group.loc[mask]
+                vc = ag.value_counts().head(20)
+                if len(vc) > 0:
+                    fig_ag = px.bar(
+                        x=list(vc.values),
+                        y=list(vc.index),
+                        orientation="h",
+                        title="Top 20 Assignment Groups",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    finalize_chart(fig_ag, height=500)
+                    st.plotly_chart(fig_ag, use_container_width=True)
         
-        with c1:
-            ag = assignment_group.loc[mask]
-            vc = ag.value_counts().head(20)
-            fig_ag = px.bar(
-                x=list(vc.values),
-                y=list(vc.index),
-                orientation="h",
-                title="Top 20 Assignment Groups",
-                color_discrete_sequence=[TM_MAGENTA],
-            )
-            finalize_chart(fig_ag, height=500)
-            st.plotly_chart(fig_ag, use_container_width=True)
-        
-        with c2:
-            assigned_to = col(dff, "ASSIGNED_TO", "assigned_to").fillna("(Unassigned)").astype(str)
-            vc = assigned_to.value_counts().head(20)
-            fig_user = px.bar(
-                x=list(vc.values),
-                y=list(vc.index),
-                orientation="h",
-                title="Top 20 Assigned Users",
-                color_discrete_sequence=[TM_MAGENTA],
-            )
-            finalize_chart(fig_user, height=500)
-            st.plotly_chart(fig_user, use_container_width=True)
+            with c2:
+                assigned_to = col(dff, "ASSIGNED_TO", "assigned_to").fillna("(Unassigned)").astype(str)
+                vc = assigned_to.value_counts().head(20)
+                if len(vc) > 0:
+                    fig_user = px.bar(
+                        x=list(vc.values),
+                        y=list(vc.index),
+                        orientation="h",
+                        title="Top 20 Assigned Users",
+                        color_discrete_sequence=[TM_MAGENTA],
+                    )
+                    finalize_chart(fig_user, height=500)
+                    st.plotly_chart(fig_user, use_container_width=True)
 
-        ag_age = pd.DataFrame({
-            "Assignment_Group": assignment_group.loc[mask],
-            "Days_Open": dff["_DAYS_OPEN"]
-        })
-        ag_stats = (
-            ag_age.groupby("Assignment_Group", as_index=False)
-            .agg({"Days_Open": ["count", "mean", "median"]})
-        )
-        ag_stats.columns = ["Assignment_Group", "Count", "Avg_Days", "Median_Days"]
-        ag_stats = ag_stats.sort_values("Count", ascending=False).head(20)
-        
-        st.subheader("Assignment Group Statistics (Top 20)")
-        st.dataframe(ag_stats.round(1), use_container_width=True, hide_index=True)
+            ag_age = pd.DataFrame({
+                "Assignment_Group": assignment_group.loc[mask].values,
+                "Days_Open": dff["_DAYS_OPEN"].values
+            })
+            if len(ag_age) > 0:
+                ag_stats = (
+                    ag_age.groupby("Assignment_Group", as_index=False)
+                    .agg({"Days_Open": ["count", "mean", "median"]})
+                )
+                ag_stats.columns = ["Assignment_Group", "Count", "Avg_Days", "Median_Days"]
+                ag_stats = ag_stats.sort_values("Count", ascending=False).head(20)
+                
+                st.subheader("Assignment Group Statistics (Top 20)")
+                st.dataframe(ag_stats.round(1), use_container_width=True, hide_index=True)
 
     with tab4:
         st.subheader("Incident Data")
