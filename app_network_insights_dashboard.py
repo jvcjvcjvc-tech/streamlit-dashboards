@@ -2,6 +2,9 @@
 Network Insights Dashboard - Combined View
 Analytics and visualizations for T-Mobile network operations
 Combines: Availability, COTTR, and Customer Minutes
+
+Run locally: ``streamlit run app_network_insights_dashboard.py``
+Streamlit Cloud: set the main file to ``app_network_insights_dashboard.py`` (repo root).
 """
 
 import streamlit as st
