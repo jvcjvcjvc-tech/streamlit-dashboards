@@ -199,7 +199,19 @@ def main() -> None:
     inc_category = col(df, "CATEGORY").fillna("(blank)").astype(str)
     priority = col(df, "PRIORITY", "priority").fillna("(blank)").astype(str)
     assignment_group = col(df, "ASSIGNMENT_GROUP", "assignment_group").fillna("(blank)").astype(str)
-    market = col(df, "MARKET_ID", "M_MARKET_ABBREVATION", "MARKET_NAME").fillna("(No market)").astype(str)
+    # Find market column - try multiple names
+    market_col_name = None
+    for mc in ["MARKET_ID", "market_id", "M_MARKET_ABBREVATION", "MARKET_NAME"]:
+        if mc in df.columns:
+            market_col_name = mc
+            break
+    
+    if market_col_name:
+        market = df[market_col_name].fillna("(No market)").astype(str)
+        st.sidebar.success(f"Using market column: {market_col_name}")
+    else:
+        market = pd.Series(["(No market)"] * len(df), index=df.index)
+        st.sidebar.error("No market column found!")
     region = col(df, "RGN_RGN_ABBRV", "M_AREA", "REGION_NAME").fillna("(No region)").astype(str)
 
     st.sidebar.subheader("Filters")
