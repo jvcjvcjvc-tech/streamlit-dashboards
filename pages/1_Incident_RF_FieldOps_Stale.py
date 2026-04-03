@@ -30,6 +30,8 @@ HERE = Path(__file__).resolve().parent.parent
 DEFAULT_CSV = HERE / "incident_rf_fieldops_stale_notes.csv"
 SQL_FILE = HERE / "incident_rf_fieldops_switch_notes.sql"
 AGENT = HERE / "simple_agent_with_sso_auth.py"
+# Writable in Streamlit in Snowflake when the app stage directory is read-only
+SNOWFLAKE_SIS_EXPORT = Path("/tmp/incident_rf_fieldops_stale_notes.csv")
 
 # Columns needed for charts, filters, and the main table (no heavy text).
 SLIM_COLS = [
@@ -173,6 +175,17 @@ def _env_truthy(name: str) -> bool:
     return v.strip().lower() in ("1", "true", "yes", "on")
 
 
+def snowpark_session_available() -> bool:
+    """True inside Streamlit in Snowflake (embedded session — no browser SSO)."""
+    try:
+        from snowflake.snowpark.context import get_active_session
+
+        get_active_session()
+        return True
+    except Exception:
+        return False
+
+
 def is_hosted_streamlit_deploy() -> bool:
     if _env_truthy("STREAMLIT_DISABLE_SNOWFLAKE_SSO"):
         return True
@@ -243,13 +256,21 @@ def main() -> None:
     )
     inject_dashboard_typography()
 
+    in_sis = snowpark_session_available()
     hosted = is_hosted_streamlit_deploy()
     cloud_secret = secrets_flag_is_cloud()
     if cloud_secret is not None:
         hosted = cloud_secret
+    # Community Cloud / read-only hosts: subprocess + browser SSO cannot run
+    hosted_sso_blocked = hosted and not in_sis
 
     st.sidebar.header("Data source")
-    if hosted:
+    if in_sis:
+        st.sidebar.info(
+            "**Streamlit in Snowflake:** refresh runs the SQL with **your current session** "
+            "(no external browser). Output is written under **CSV path** (default `/tmp/...`)."
+        )
+    elif hosted_sso_blocked:
         st.sidebar.info(
             "**Hosted mode:** Snowflake SSO from the server is disabled. "
             "Export the CSV on your machine or **Upload CSV**."
@@ -257,31 +278,71 @@ def main() -> None:
     default_path = (
         str(DEFAULT_CSV.resolve())
         if DEFAULT_CSV.is_file()
-        else ("" if hosted else str(DEFAULT_CSV.resolve()))
+        else (
+            str(SNOWFLAKE_SIS_EXPORT)
+            if in_sis
+            else ("" if hosted_sso_blocked else str(DEFAULT_CSV.resolve()))
+        )
     )
-    path_input = st.sidebar.text_input(
+    if "incident_csv_path_input" not in st.session_state:
+        st.session_state["incident_csv_path_input"] = default_path
+    st.sidebar.text_input(
         "CSV path",
-        value=default_path,
-        help=f"Default: {DEFAULT_CSV.name}",
+        key="incident_csv_path_input",
+        help=f"Local default: {DEFAULT_CSV.name}. In Snowflake SiS: often {SNOWFLAKE_SIS_EXPORT}.",
     )
+    path_input = st.session_state["incident_csv_path_input"]
     uploaded = st.sidebar.file_uploader("Or upload CSV", type=["csv"])
 
-    if st.sidebar.button(
-        "Refresh from Snowflake (SSO)",
-        help=f"Runs: python {AGENT.name} {SQL_FILE.name} {DEFAULT_CSV.name}",
-        disabled=hosted or not SQL_FILE.is_file() or not AGENT.is_file(),
-    ):
-        cmd = [sys.executable, str(AGENT), str(SQL_FILE), str(DEFAULT_CSV)]
-        with st.spinner("Snowflake export… complete browser SSO if prompted."):
-            r = subprocess.run(cmd, cwd=str(HERE), capture_output=True, text=True)
-        if r.returncode != 0:
-            st.sidebar.error(r.stderr or r.stdout or "Export failed.")
-        else:
-            st.sidebar.success(f"Wrote {DEFAULT_CSV.name} ({DEFAULT_CSV.stat().st_size:,} bytes)")
-            st.cache_data.clear()
-            st.rerun()
+    refresh_sso_disabled = hosted_sso_blocked or not SQL_FILE.is_file() or not AGENT.is_file()
+    refresh_sis_disabled = not SQL_FILE.is_file()
+    sis_help = (
+        f"Runs `{SQL_FILE.name}` via Snowpark session and saves CSV (see CSV path). "
+        "Requires rights on objects in the SQL."
+    )
+    sso_help = f"Runs: python {AGENT.name} {SQL_FILE.name} {DEFAULT_CSV.name}"
 
-    st.sidebar.caption(f"CLI: `python {AGENT.name} {SQL_FILE.name} {DEFAULT_CSV.name}`")
+    if st.sidebar.button(
+        "Refresh from Snowflake (session)" if in_sis else "Refresh from Snowflake (SSO)",
+        help=sis_help if in_sis else sso_help,
+        disabled=refresh_sis_disabled if in_sis else refresh_sso_disabled,
+    ):
+        if in_sis:
+            try:
+                from snowflake.snowpark.context import get_active_session
+            except ImportError as e:
+                st.sidebar.error(f"Snowpark not available: {e}")
+            else:
+                out_path = Path(path_input.strip()) if path_input.strip() else SNOWFLAKE_SIS_EXPORT
+                sql_text = SQL_FILE.read_text(encoding="utf-8")
+                try:
+                    with st.spinner("Running SQL with Snowflake session…"):
+                        session = get_active_session()
+                        df = session.sql(sql_text).to_pandas()
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_csv(out_path, index=False)
+                    st.session_state["incident_csv_path_input"] = str(out_path.resolve())
+                    st.sidebar.success(f"Wrote {len(df):,} rows → `{out_path}`")
+                    st.cache_data.clear()
+                    st.rerun()
+                except OSError as e:
+                    st.sidebar.error(f"Could not write CSV to {out_path}: {e}")
+                except Exception as e:
+                    st.sidebar.error(f"Snowflake query failed: {e}")
+        else:
+            cmd = [sys.executable, str(AGENT), str(SQL_FILE), str(DEFAULT_CSV)]
+            with st.spinner("Snowflake export… complete browser SSO if prompted."):
+                r = subprocess.run(cmd, cwd=str(HERE), capture_output=True, text=True)
+            if r.returncode != 0:
+                st.sidebar.error(r.stderr or r.stdout or "Export failed.")
+            else:
+                st.sidebar.success(f"Wrote {DEFAULT_CSV.name} ({DEFAULT_CSV.stat().st_size:,} bytes)")
+                st.cache_data.clear()
+                st.rerun()
+
+    st.sidebar.caption(
+        f"CLI (local): `python {AGENT.name} {SQL_FILE.name} {DEFAULT_CSV.name}`"
+    )
 
     if uploaded is not None:
         tmp_path = HERE / "_upload_incident_rf_temp.csv"

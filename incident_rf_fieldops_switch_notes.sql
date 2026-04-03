@@ -2,7 +2,7 @@
 -- Group/category from BDM_NDW_IDENTIFY_MANAGEMENT_DB.PROFILEMANAGER_V.V_GROUP (column CATEGORY).
 -- Fixed: REGEXP_REPLACE closing pattern, Snowflake DATEDIFF units.
 -- Filter: no qualifying work note, or last qualifying note older than 30 days (see WHERE).
--- Also: **active only** — exclude resolved/closed/canceled (they would still match stale-note logic without this).
+-- **Open incidents only** — non-terminal STATE, RESOLVED_DATE IS NULL (see TIX + final WHERE).
 -- MKT_* comes from ring/site tracker only (legacy GROUPS.GROUP_MARKET not on V_GROUP).
 
 WITH TIX AS (
@@ -11,9 +11,13 @@ WITH TIX AS (
     INNER JOIN BDM_NDW_IDENTIFY_MANAGEMENT_DB.PROFILEMANAGER_V.V_GROUP G
         ON INC.ASSIGNMENT_GROUP = G.GROUP_NAME
     WHERE UPPER(G.CATEGORY) IN ('RF', 'FIELD OPS', 'SWITCH')
-      AND (
-          INC.OPENED_DATE BETWEEN DATEADD('year', -2, CURRENT_DATE) AND CURRENT_DATE
-          OR INC.RESOLVED_DATE IS NULL
+      AND INC.RESOLVED_DATE IS NULL
+      AND UPPER(TRIM(COALESCE(INC.STATE, ''))) NOT IN (
+          'RESOLVED',
+          'CLOSED',
+          'CANCELED',
+          'CANCELLED',
+          'TERMINATED'
       )
       AND UPPER(INC.ASSIGNMENT_GROUP) <> 'FIELDGLASS'
 ),
@@ -55,11 +59,7 @@ FilteredNotesWithActivity AS (
       -- AND N.INCIDENT_NUMBER ILIKE '%INC%'
 )
 SELECT DISTINCT
-    CASE
-        WHEN UPPER(INC.STATE) IN ('RESOLVED', 'CLOSED') THEN 'RESOLVED_CLOSED'
-        WHEN UPPER(INC.STATE) IN ('CANCELED', 'TERMINATED') THEN 'CANCELED_TERMINATED'
-        ELSE 'OPEN'
-    END AS REPORT_TYPE,
+    'OPEN' AS REPORT_TYPE,
     INC.INCIDENT_NUMBER AS TT_ID,
     CASE
         WHEN MKT.MARKET_ID ILIKE '%EIT%' OR MKT.MARKET_ID ILIKE '%Enterprise IT%' THEN 'EIT'
@@ -207,6 +207,7 @@ WHERE (
       N.MAX_CREATED_ON IS NULL
       OR DATEDIFF('day', N.MAX_CREATED_ON, CURRENT_DATE) > 30
   )
+  AND INC.RESOLVED_DATE IS NULL
   AND UPPER(TRIM(COALESCE(INC.STATE, ''))) NOT IN (
       'RESOLVED',
       'CLOSED',
