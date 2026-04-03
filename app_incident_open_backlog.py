@@ -180,11 +180,11 @@ def main() -> None:
     df["_DAYS_OPEN"] = calculate_days_open(df)
 
     state = col(df, "STATE", "state").fillna("(blank)").astype(str)
-    category = col(df, "CATEGORY", "G.CATEGORY").fillna("(blank)").astype(str)
+    category = col(df, "CATEGORY", "GROUP_CATEGORY").fillna("(blank)").astype(str)
     priority = col(df, "PRIORITY", "priority").fillna("(blank)").astype(str)
     assignment_group = col(df, "ASSIGNMENT_GROUP", "assignment_group").fillna("(blank)").astype(str)
-    market = col(df, "MARKET_NAME", "MKT.MARKET_NAME", "MARKETNAME").fillna("(No market)").astype(str)
-    region = col(df, "REGION", "MKT.REGION", "REGION_NAME").fillna("(No region)").astype(str)
+    market = col(df, "M_MARKET_ABBREVATION", "MARKET_NAME").fillna("(No market)").astype(str)
+    region = col(df, "RGN_RGN_ABBRV", "M_AREA", "REGION_NAME").fillna("(No region)").astype(str)
 
     st.sidebar.subheader("Filters")
     
@@ -365,8 +365,8 @@ def main() -> None:
         
         display_cols = [c for c in [
             "INCIDENT_NUMBER", "STATE", "PRIORITY", "CATEGORY", "SHORT_DESCRIPTION",
-            "ASSIGNMENT_GROUP", "ASSIGNED_TO", "OPENED_AT", "_DAYS_OPEN",
-            "CONFIG_ITEM", "MARKET_NAME", "REGION_NAME"
+            "ASSIGNMENT_GROUP", "ASSIGNED_TO", "OPENED_DATE", "_DAYS_OPEN",
+            "CONFIG_ITEM", "M_MARKET_ABBREVATION", "RGN_RGN_ABBRV", "GROUP_CATEGORY"
         ] if c in dff.columns or c == "_DAYS_OPEN"]
         
         view = dff[display_cols] if display_cols else dff
