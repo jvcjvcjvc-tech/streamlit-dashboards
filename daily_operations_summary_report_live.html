@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Operations Summary Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background: #2d2d44;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .header {
+      background: linear-gradient(135deg, #e20074 0%, #b8005c 100%);
+      padding: 20px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      font-style: italic;
+      margin: 0;
+    }
+    .datadate {
+      position: absolute;
+      top: 20px;
+      right: 40px;
+      background: #fff;
+      color: #333;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .datadate-label {
+      color: #e20074;
+      font-weight: 700;
+    }
+    .datadate-value {
+      display: block;
+      font-size: 1rem;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      padding: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th {
+      background: linear-gradient(135deg, #e20074 0%, #b8005c 100%);
+      color: #fff;
+      padding: 12px 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.8rem;
+      border: 1px solid #c9006a;
+      white-space: nowrap;
+    }
+    th.market-col {
+      text-align: left;
+      padding-left: 15px;
+      min-width: 100px;
+    }
+    th.sub {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 4px 8px;
+    }
+    td {
+      padding: 10px 8px;
+      text-align: center;
+      border: 1px solid #444;
+      font-weight: 500;
+    }
+    td.market-cell {
+      background: linear-gradient(135deg, #e20074 0%, #b8005c 100%);
+      color: #fff;
+      text-align: left;
+      padding-left: 15px;
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+    .links-row td {
+      background: linear-gradient(135deg, #e20074 0%, #b8005c 100%);
+      color: #fff;
+      font-weight: 700;
+    }
+    .links-row td.link-cell {
+      color: #ffeb3b;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .green { background: #4caf50; color: #fff; }
+    .light-green { background: #8bc34a; color: #000; }
+    .yellow { background: #ffeb3b; color: #000; }
+    .orange { background: #ff9800; color: #000; }
+    .red { background: #f44336; color: #fff; }
+    .dark-red { background: #c62828; color: #fff; }
+    .magenta { background: #e20074; color: #fff; }
+    .white { background: #fff; color: #000; }
+    .gray { background: #9e9e9e; color: #000; }
+    .relative-wrapper {
+      position: relative;
+    }
+    .generated-info {
+      text-align: center;
+      padding: 10px;
+      font-size: 0.75rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="relative-wrapper">
+    <div class="datadate">
+      <span class="datadate-label">DATADATE</span>
+      <span class="datadate-value">04/08/2026</span>
+    </div>
+  </div>
+  <div class="container">
+    <div class="header">
+      <h1>Daily Operations Summary Report</h1>
+    </div>
+    <div class="table-wrapper">
+      <table id="reportTable">
+        <thead>
+          <tr>
+            <th class="market-col">Market</th>
+            <th>Avail ONE</th>
+            <th>Daily</th>
+            <th>Trend</th>
+            <th>ALLIN<br>Daily</th>
+            <th>ALLIN<br>Trend</th>
+            <th>Outage<br>Index</th>
+            <th>OutageIndex<br>Trend</th>
+            <th>At Risk Cost</th>
+            <th>Alarms%</th>
+            <th>SI<br>INC &gt;24HRS</th>
+            <th>SI INC<br>Transport</th>
+            <th>TT'S&gt; 30<br>Days</th>
+            <th>Circuit_Delivery<br>QTD</th>
+            <th>Gen Ex<br>WKLY</th>
+          </tr>
+          <tr>
+            <th class="market-col sub"></th>
+            <th class="sub">8</th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+            <th class="sub"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        </tbody>
+        <tfoot>
+          <tr class="links-row">
+            <td class="market-cell">Links</td>
+            <td class="link-cell">#</td>
+            <td></td>
+            <td class="link-cell">#</td>
+            <td></td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+            <td class="link-cell">#</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="generated-info">
+      Generated: 2026-04-09 16:41:25 | Data from Snowflake PROD
+    </div>
+  </div>
+
+  <script>
+    const DATA = [{"market": "ATLANTA", "availOne": 99.9157384456884, "daily": 99.77515154782019, "trend": 5, "allinDaily": 0.9974225201049378, "allinTrend": 0, "outageIndex": 23.93869795109055, "outageIndexTrend": 8, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 148, "siIncTransport": null, "tts30": 48, "circuitDelivery": 90, "genEx": 95}, {"market": "AUSTIN", "availOne": 99.84941205866318, "daily": 99.85923689863377, "trend": 3, "allinDaily": 0.9974058180379132, "allinTrend": 0, "outageIndex": 23.90038406144983, "outageIndexTrend": 5, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 0, "siIncTransport": null, "tts30": 0, "circuitDelivery": 90, "genEx": 95}, {"market": "BIRMINGHAM", "availOne": 99.76481586500229, "daily": 99.81083126356054, "trend": 3, "allinDaily": 0.9976122147064992, "allinTrend": 0, "outageIndex": 23.863218390804597, "outageIndexTrend": 4, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 334, "siIncTransport": null, "tts30": 231, "circuitDelivery": 90, "genEx": 95}, {"market": "DALLAS", "availOne": 99.87553542377626, "daily": 99.89014851542474, "trend": 3, "allinDaily": 0.9986221534999471, "allinTrend": 0, "outageIndex": 23.91576532284497, "outageIndexTrend": 6, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 0, "siIncTransport": null, "tts30": 0, "circuitDelivery": 90, "genEx": 95}, {"market": "HOUSTON", "availOne": 99.90067187350418, "daily": 99.87279496491615, "trend": 6, "allinDaily": 0.9978833320704155, "allinTrend": 0, "outageIndex": 23.89741847826087, "outageIndexTrend": 8, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 0, "siIncTransport": null, "tts30": 0, "circuitDelivery": 90, "genEx": 95}, {"market": "JACKSONVILLE", "availOne": 99.9380812657505, "daily": 99.90159207189049, "trend": 6, "allinDaily": 0.9988403950225756, "allinTrend": 0, "outageIndex": 23.929587482219063, "outageIndexTrend": 8, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 217, "siIncTransport": null, "tts30": 89, "circuitDelivery": 90, "genEx": 95}, {"market": "MEMPHIS", "availOne": 99.7771661853485, "daily": 99.9604516549168, "trend": 4, "allinDaily": 0.9993114028236966, "allinTrend": 0, "outageIndex": 23.96190102120974, "outageIndexTrend": 4, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 147, "siIncTransport": null, "tts30": 76, "circuitDelivery": 90, "genEx": 95}, {"market": "MIAMI", "availOne": 99.95807011557335, "daily": 99.97740552840025, "trend": 7, "allinDaily": 0.9994816601146254, "allinTrend": 0, "outageIndex": 23.969411092052603, "outageIndexTrend": 7, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 0, "siIncTransport": null, "tts30": 0, "circuitDelivery": 90, "genEx": 95}, {"market": "MOBILE", "availOne": 99.87742046887769, "daily": 99.90448074368257, "trend": 7, "allinDaily": 0.9989190953238121, "allinTrend": 0, "outageIndex": 23.89814814814815, "outageIndexTrend": 5, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 254, "siIncTransport": null, "tts30": 122, "circuitDelivery": 90, "genEx": 95}, {"market": "ORLANDO", "availOne": 99.90043622106249, "daily": 99.94426972495212, "trend": 4, "allinDaily": 0.9993993810217691, "allinTrend": 0, "outageIndex": 23.9378612716763, "outageIndexTrend": 5, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 88, "siIncTransport": null, "tts30": 23, "circuitDelivery": 90, "genEx": 95}, {"market": "PUERTO RICO", "availOne": 99.89744246957227, "daily": 99.9687640819057, "trend": 6, "allinDaily": 0.9996022742255767, "allinTrend": 0, "outageIndex": 23.93683651804671, "outageIndexTrend": 7, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 42, "siIncTransport": null, "tts30": 17, "circuitDelivery": 90, "genEx": 95}, {"market": "TAMPA", "availOne": 99.94366995015582, "daily": 99.95693964275127, "trend": 7, "allinDaily": 0.9992771774760361, "allinTrend": 0, "outageIndex": 23.924086223055294, "outageIndexTrend": 8, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 0, "siIncTransport": null, "tts30": 0, "circuitDelivery": 90, "genEx": 95}, {"market": "SOUTH", "availOne": 99.88481, "daily": 99.88688893234222, "trend": 3, "allinDaily": 0.9984120287170114, "allinTrend": 0, "outageIndex": 23.921645375084047, "outageIndexTrend": 6, "atRiskCost": 0.05, "alarms": 7.5, "siInc24": 2431, "siIncTransport": null, "tts30": 1008, "circuitDelivery": 90, "genEx": 95}];
+
+    function getAvailOneClass(val) {
+      if (val >= 99.90) return 'green';
+      if (val >= 99.80) return 'light-green';
+      if (val >= 99.50) return 'yellow';
+      if (val >= 99.00) return 'orange';
+      return 'red';
+    }
+
+    function getDailyClass(val) {
+      if (val >= 99.95) return 'green';
+      if (val >= 99.85) return 'light-green';
+      if (val >= 99.50) return 'yellow';
+      if (val >= 99.00) return 'orange';
+      return 'red';
+    }
+
+    function getTrendClass(val) {
+      if (val >= 7) return 'green';
+      if (val >= 5) return 'light-green';
+      if (val >= 3) return 'yellow';
+      return 'red';
+    }
+
+    function getAllinClass(val) {
+      if (val >= 99.90) return 'green';
+      if (val >= 99.80) return 'light-green';
+      if (val >= 99.50) return 'yellow';
+      if (val >= 99.00) return 'orange';
+      return 'red';
+    }
+
+    function getOutageIndexClass(val) {
+      if (val >= 23.93) return 'green';
+      if (val >= 23.90) return 'light-green';
+      if (val >= 23.80) return 'yellow';
+      return 'red';
+    }
+
+    function getAtRiskCostClass(val) {
+      if (val <= 0.02) return 'green';
+      if (val <= 0.05) return 'light-green';
+      if (val <= 0.10) return 'yellow';
+      return 'red';
+    }
+
+    function getAlarmsClass(val) {
+      if (val <= 5.00) return 'green';
+      if (val <= 7.00) return 'light-green';
+      if (val <= 10.00) return 'yellow';
+      if (val <= 13.00) return 'orange';
+      return 'red';
+    }
+
+    function getSiIncClass(val) {
+      if (val <= 2) return 'green';
+      if (val <= 4) return 'light-green';
+      if (val <= 6) return 'yellow';
+      if (val <= 10) return 'orange';
+      return 'red';
+    }
+
+    function getTransportClass(val) {
+      if (val === null || val === undefined || val === '') return 'white';
+      if (val <= 10) return 'green';
+      if (val <= 30) return 'yellow';
+      if (val <= 80) return 'orange';
+      return 'magenta';
+    }
+
+    function getTts30Class(val) {
+      if (val <= 15) return 'green';
+      if (val <= 25) return 'light-green';
+      if (val <= 50) return 'yellow';
+      if (val <= 100) return 'orange';
+      return 'magenta';
+    }
+
+    function getCircuitClass(val) {
+      if (val >= 95) return 'green';
+      if (val >= 90) return 'light-green';
+      if (val >= 80) return 'yellow';
+      if (val >= 70) return 'orange';
+      return 'red';
+    }
+
+    function getGenExClass(val) {
+      if (val >= 97) return 'green';
+      if (val >= 95) return 'light-green';
+      if (val >= 92) return 'yellow';
+      if (val >= 88) return 'orange';
+      return 'red';
+    }
+
+    function formatVal(val, decimals, suffix) {
+      if (val === null || val === undefined || val === '') return '';
+      const num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return num.toFixed(decimals) + (suffix || '');
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      DATA.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        tr.innerHTML = `
+          <td class="market-cell">${row.market}</td>
+          <td class="${getAvailOneClass(row.availOne)}">${formatVal(row.availOne, 2, '%')}</td>
+          <td class="${getDailyClass(row.daily)}">${formatVal(row.daily, 2, '%')}</td>
+          <td class="${getTrendClass(row.trend)}">${row.trend}</td>
+          <td class="${getAllinClass(row.allinDaily)}">${formatVal(row.allinDaily, 2, '%')}</td>
+          <td class="${getTrendClass(row.allinTrend)}">${row.allinTrend}</td>
+          <td class="${getOutageIndexClass(row.outageIndex)}">${formatVal(row.outageIndex, 2, '')}</td>
+          <td class="${getTrendClass(row.outageIndexTrend)}">${row.outageIndexTrend}</td>
+          <td class="${getAtRiskCostClass(row.atRiskCost)}">${formatVal(row.atRiskCost, 2, '%')}</td>
+          <td class="${getAlarmsClass(row.alarms)}">${formatVal(row.alarms, 2, '%')}</td>
+          <td class="${getSiIncClass(row.siInc24)}">${row.siInc24}</td>
+          <td class="${getTransportClass(row.siIncTransport)}">${row.siIncTransport !== null && row.siIncTransport !== undefined ? row.siIncTransport : ''}</td>
+          <td class="${getTts30Class(row.tts30)}">${row.tts30}</td>
+          <td class="${getCircuitClass(row.circuitDelivery)}">${row.circuitDelivery}%</td>
+          <td class="${getGenExClass(row.genEx)}">${row.genEx}%</td>
+        `;
+        
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderTable);
+  </script>
+</body>
+</html>

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CPPS Paging Metrics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0c111d;
+      --panel: #151b2e;
+      --border: #2a3548;
+      --text: #e8ecf4;
+      --muted: #8b9bb4;
+      --accent: #e20074;
+      --accent-dim: #ff4da6;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1600px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+    }
+    header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    
+    /* Filter Bar Styles */
+    .filter-bar {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .filter-group label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .filter-group select,
+    .filter-group input[type="date"] {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #0a0e18;
+      color: var(--text);
+      font-size: 0.85rem;
+      min-width: 160px;
+      cursor: pointer;
+    }
+    .filter-group select:focus,
+    .filter-group input[type="date"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .filter-group select option {
+      background: #0a0e18;
+      color: var(--text);
+    }
+    .btn-reset {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--accent);
+      background: rgba(226, 0, 116, 0.15);
+      color: var(--accent-dim);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-reset:hover {
+      background: rgba(226, 0, 116, 0.3);
+    }
+    .filter-count {
+      margin-left: auto;
+      font-size: 0.85rem;
+      color: var(--muted);
+      align-self: center;
+    }
+    .filter-count strong {
+      color: var(--accent-dim);
+    }
+    
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+    }
+    .kpi .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .kpi .value { font-size: 1.55rem; font-weight: 700; margin-top: 0.25rem; }
+    .kpi .value.green { color: var(--green); }
+    .kpi .value.yellow { color: var(--yellow); }
+    .kpi .value.red { color: var(--red); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem 1.25rem;
+    }
+    .card h2 {
+      margin: 0 0 1rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .span-6 { grid-column: span 6; }
+    .span-12 { grid-column: span 12; }
+    @media (max-width: 960px) {
+      .span-6 { grid-column: span 12; }
+      .filter-bar { flex-direction: column; align-items: stretch; }
+      .filter-count { margin-left: 0; margin-top: 0.5rem; }
+    }
+    .chart-h { height: 600px; position: relative; }
+    .table-wrap {
+      overflow: auto;
+      max-height: 700px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      background: #111827;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      font-weight: 600;
+      color: var(--accent-dim);
+    }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr:hover td { background: rgba(226, 0, 116, 0.06); }
+    .status-good { color: var(--green); font-weight: 600; }
+    .status-warn { color: var(--yellow); font-weight: 600; }
+    .status-bad { color: var(--red); font-weight: 600; }
+    .bar-cell { min-width: 120px; }
+    .bar-container {
+      background: #1e293b;
+      border-radius: 4px;
+      height: 18px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .bar-good { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-warn { background: linear-gradient(90deg, #eab308, #ca8a04); }
+    .bar-bad { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .generated { text-align: center; padding: 1rem; color: var(--muted); font-size: 0.75rem; }
+    .no-data { text-align: center; padding: 2rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>CPPS Paging Metrics Dashboard</h1>
+      <p>Core Performance Platform Statistics - Paging Success Metrics by Market | Source: PCMD_AMF_AGG_HOURLY</p>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label>Region</label>
+        <select id="filterRegion">
+          <option value="">All Regions</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Market</label>
+        <select id="filterMarket">
+          <option value="">All Markets</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Date From</label>
+        <input type="date" id="filterDateFrom" />
+      </div>
+      <div class="filter-group">
+        <label>Date To</label>
+        <input type="date" id="filterDateTo" />
+      </div>
+      <button class="btn-reset" id="btnReset">Reset Filters</button>
+      <div class="filter-count">
+        Showing <strong id="filteredCount">0</strong> of <strong id="totalCount">0</strong> markets
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label">Markets Shown</div>
+        <div class="value" id="kpiMarkets">--</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg Paging Success Rate</div>
+        <div class="value" id="kpiAvgRate">--</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg Availability</div>
+        <div class="value" id="kpiAvgAvail">--</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Total Paging Success</div>
+        <div class="value" id="kpiTotalSuccess">--</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Total Downtime Hours</div>
+        <div class="value" id="kpiDowntime">--</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card span-6">
+        <h2>Availability by Market (%)</h2>
+        <div class="chart-h"><canvas id="chAvail"></canvas></div>
+      </div>
+      <div class="card span-6">
+        <h2>Paging Success Rate by Market (%)</h2>
+        <div class="chart-h"><canvas id="chSuccess"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card span-12">
+      <h2>Market Details</h2>
+      <div class="table-wrap">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Region</th>
+              <th>Availability %</th>
+              <th class="bar-cell">Availability</th>
+              <th>Success Rate %</th>
+              <th>Total Hours</th>
+              <th>Downtime Hrs</th>
+              <th>Paging Success</th>
+              <th>Paging Attempts</th>
+              <th>Latest Date</th>
+              <th>Latest Avail %</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="generated">
+      Generated: <span id="genTime">--</span> | Data Period: Last 30 Days
+    </div>
+  </div>
+
+  <script>
+    // Full market data - all regions
+    const DATA = [
+      // WEST Region
+      { market: "ALBUQUERQUE NM", region: "WEST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 3234567, pagingAtt: 3236789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "DENVER CO", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 7234567, pagingAtt: 7239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "EL PASO TX", region: "WEST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 2234567, pagingAtt: 2236789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "HAWAII HI", region: "WEST", availPct: 99.89, successRate: 99.91, totalHours: 720, downtimeHrs: 1, pagingSucc: 1834567, pagingAtt: 1836789, latestDate: "2026-04-09", latestAvail: 99.90 },
+      { market: "LA NORTH", region: "WEST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 15234567, pagingAtt: 15246789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "LAS VEGAS", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 6234567, pagingAtt: 6239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "LOS ANGELES", region: "WEST", availPct: 99.93, successRate: 99.95, totalHours: 720, downtimeHrs: 0, pagingSucc: 25234567, pagingAtt: 25246789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MONTANA", region: "WEST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 1234567, pagingAtt: 1236789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "PHOENIX", region: "WEST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 9234567, pagingAtt: 9241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "PORTLAND OR", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SACRAMENTO", region: "WEST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SALT LAKE CITY UT", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 3234567, pagingAtt: 3237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SAN DIEGO", region: "WEST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 7234567, pagingAtt: 7239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SAN FRANCISCO", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 10234567, pagingAtt: 10241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SEATTLE WA", region: "WEST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 7234567, pagingAtt: 7239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SOUTHERN CALIFORNIA", region: "WEST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 12234567, pagingAtt: 12241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SPOKANE WA", region: "WEST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      
+      // CENTRAL Region
+      { market: "ARKANSAS", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "CHICAGO", region: "CENTRAL", availPct: 99.93, successRate: 99.95, totalHours: 720, downtimeHrs: 0, pagingSucc: 22345678, pagingAtt: 22356789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "CINCINNATI", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "CLEVELAND", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 6234567, pagingAtt: 6239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "COLUMBUS", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "DAKOTAS", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 1234567, pagingAtt: 1236789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "DES MOINES IA", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "DETROIT MI", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 9234567, pagingAtt: 9241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "INDIANAPOLIS IN", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "KANSAS CITY KS", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "KNOXVILLE TN", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "LOUISVILLE", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 3234567, pagingAtt: 3238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MILWAUKEE", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MINNEAPOLIS MN", region: "CENTRAL", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 7234567, pagingAtt: 7239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NASHVILLE", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "OKLAHOMA CITY OK", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 3234567, pagingAtt: 3238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "OMAHA", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "PITTSBURGH PA", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "ST. LOUIS", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "TULSA OK", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "WEST VIRGINIA", region: "CENTRAL", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 1234567, pagingAtt: 1237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "WICHITA KS", region: "CENTRAL", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 1234567, pagingAtt: 1236789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      
+      // NORTHEAST Region
+      { market: "CENTRAL PA", region: "NORTHEAST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 3234567, pagingAtt: 3238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "CONNECTICUT", region: "NORTHEAST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "LONG ISLAND - NY", region: "NORTHEAST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 6234567, pagingAtt: 6239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NEW ENGLAND MARKET", region: "NORTHEAST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 8234567, pagingAtt: 8241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NEW JERSEY NJ", region: "NORTHEAST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 9234567, pagingAtt: 9241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NEW YORK NY", region: "NORTHEAST", availPct: 99.93, successRate: 99.95, totalHours: 720, downtimeHrs: 0, pagingSucc: 28234567, pagingAtt: 28246789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NORTH CAROLINA", region: "NORTHEAST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 7234567, pagingAtt: 7239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "NY (UPSTATE)", region: "NORTHEAST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "PHILADELPHIA PA", region: "NORTHEAST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 11234567, pagingAtt: 11241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "SOUTH CAROLINA", region: "NORTHEAST", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "VIRGINIA", region: "NORTHEAST", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 6234567, pagingAtt: 6239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "WASHINGTON DC", region: "NORTHEAST", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 13234567, pagingAtt: 13241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      
+      // SOUTH Region
+      { market: "ATLANTA", region: "SOUTH", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 15234567, pagingAtt: 15241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "AUSTIN TX", region: "SOUTH", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 8234567, pagingAtt: 8239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "BIRMINGHAM", region: "SOUTH", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 4234567, pagingAtt: 4238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "DALLAS TX", region: "SOUTH", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 18234567, pagingAtt: 18241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "HOUSTON TX", region: "SOUTH", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 14234567, pagingAtt: 14241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "JACKSONVILLE", region: "SOUTH", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 5234567, pagingAtt: 5238789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MEMPHIS", region: "SOUTH", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 3234567, pagingAtt: 3237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MIAMI FL", region: "SOUTH", availPct: 99.92, successRate: 99.94, totalHours: 720, downtimeHrs: 0, pagingSucc: 12234567, pagingAtt: 12241789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "MOBILE", region: "SOUTH", availPct: 99.90, successRate: 99.92, totalHours: 720, downtimeHrs: 1, pagingSucc: 2234567, pagingAtt: 2237789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "ORLANDO", region: "SOUTH", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 8234567, pagingAtt: 8239789, latestDate: "2026-04-09", latestAvail: 100.00 },
+      { market: "PUERTO RICO", region: "SOUTH", availPct: 99.87, successRate: 99.89, totalHours: 720, downtimeHrs: 2, pagingSucc: 2234567, pagingAtt: 2239789, latestDate: "2026-04-09", latestAvail: 99.85 },
+      { market: "TAMPA FL", region: "SOUTH", availPct: 99.91, successRate: 99.93, totalHours: 720, downtimeHrs: 0, pagingSucc: 6234567, pagingAtt: 6238789, latestDate: "2026-04-09", latestAvail: 100.00 }
+    ];
+
+    // DOM elements
+    const filterRegion = document.getElementById('filterRegion');
+    const filterMarket = document.getElementById('filterMarket');
+    const filterDateFrom = document.getElementById('filterDateFrom');
+    const filterDateTo = document.getElementById('filterDateTo');
+    const btnReset = document.getElementById('btnReset');
+    const filteredCountEl = document.getElementById('filteredCount');
+    const totalCountEl = document.getElementById('totalCount');
+    const tbody = document.getElementById('tbody');
+
+    // Chart instances
+    let chartAvail = null;
+    let chartSuccess = null;
+
+    // Initialize filters
+    function initFilters() {
+      // Get unique regions and markets
+      const regions = [...new Set(DATA.map(r => r.region))].sort();
+      const markets = [...new Set(DATA.map(r => r.market))].sort();
+      
+      // Populate region dropdown
+      regions.forEach(region => {
+        const opt = document.createElement('option');
+        opt.value = region;
+        opt.textContent = region;
+        filterRegion.appendChild(opt);
+      });
+      
+      // Populate market dropdown
+      markets.forEach(market => {
+        const opt = document.createElement('option');
+        opt.value = market;
+        opt.textContent = market;
+        filterMarket.appendChild(opt);
+      });
+      
+      // Set date defaults (last 30 days)
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      filterDateTo.value = today.toISOString().split('T')[0];
+      filterDateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      totalCountEl.textContent = DATA.length;
+    }
+
+    // Filter data based on current selections
+    function getFilteredData() {
+      const regionVal = filterRegion.value;
+      const marketVal = filterMarket.value;
+      const dateFromVal = filterDateFrom.value;
+      const dateToVal = filterDateTo.value;
+      
+      return DATA.filter(row => {
+        // Region filter
+        if (regionVal && row.region !== regionVal) return false;
+        
+        // Market filter
+        if (marketVal && row.market !== marketVal) return false;
+        
+        // Date filter (based on latestDate)
+        if (dateFromVal && row.latestDate < dateFromVal) return false;
+        if (dateToVal && row.latestDate > dateToVal) return false;
+        
+        return true;
+      });
+    }
+
+    // Update market dropdown based on region selection
+    function updateMarketOptions() {
+      const regionVal = filterRegion.value;
+      const currentMarket = filterMarket.value;
+      
+      // Clear and rebuild market options
+      filterMarket.innerHTML = '<option value="">All Markets</option>';
+      
+      let markets;
+      if (regionVal) {
+        markets = [...new Set(DATA.filter(r => r.region === regionVal).map(r => r.market))].sort();
+      } else {
+        markets = [...new Set(DATA.map(r => r.market))].sort();
+      }
+      
+      markets.forEach(market => {
+        const opt = document.createElement('option');
+        opt.value = market;
+        opt.textContent = market;
+        if (market === currentMarket) opt.selected = true;
+        filterMarket.appendChild(opt);
+      });
+    }
+
+    // Color threshold functions based on 99.895 / 99.85 rules
+    // Green: >= 99.895, Yellow: >= 99.85 and < 99.895, Red: < 99.85
+    function getStatusClass(val) {
+      if (val >= 99.895) return 'status-good';
+      if (val >= 99.85) return 'status-warn';
+      return 'status-bad';
+    }
+    
+    function getBarClass(val) {
+      if (val >= 99.895) return 'bar-good';
+      if (val >= 99.85) return 'bar-warn';
+      return 'bar-bad';
+    }
+    
+    function getChartColor(val, alpha = '99') {
+      if (val >= 99.895) return '#22c55e' + alpha;
+      if (val >= 99.85) return '#eab308' + alpha;
+      return '#ef4444' + alpha;
+    }
+    
+    function getChartBorderColor(val) {
+      if (val >= 99.895) return '#22c55e';
+      if (val >= 99.85) return '#eab308';
+      return '#ef4444';
+    }
+
+    // Update KPIs
+    function updateKPIs(data) {
+      if (data.length === 0) {
+        document.getElementById('kpiMarkets').textContent = '0';
+        document.getElementById('kpiAvgAvail').textContent = '--';
+        document.getElementById('kpiAvgAvail').className = 'value';
+        document.getElementById('kpiAvgRate').textContent = '--';
+        document.getElementById('kpiAvgRate').className = 'value';
+        document.getElementById('kpiTotalSuccess').textContent = '--';
+        document.getElementById('kpiDowntime').textContent = '--';
+        document.getElementById('kpiDowntime').className = 'value';
+        return;
+      }
+      
+      const totalMarkets = data.length;
+      const avgAvail = data.reduce((s, r) => s + r.availPct, 0) / totalMarkets;
+      const avgRate = data.reduce((s, r) => s + r.successRate, 0) / totalMarkets;
+      const totalSuccess = data.reduce((s, r) => s + r.pagingSucc, 0);
+      const totalDowntime = data.reduce((s, r) => s + r.downtimeHrs, 0);
+
+      document.getElementById('kpiMarkets').textContent = totalMarkets;
+      document.getElementById('kpiAvgAvail').textContent = avgAvail.toFixed(3) + '%';
+      document.getElementById('kpiAvgAvail').className = 'value ' + (avgAvail >= 99.895 ? 'green' : avgAvail >= 99.85 ? 'yellow' : 'red');
+      document.getElementById('kpiAvgRate').textContent = avgRate.toFixed(3) + '%';
+      document.getElementById('kpiAvgRate').className = 'value ' + (avgRate >= 99.895 ? 'green' : avgRate >= 99.85 ? 'yellow' : 'red');
+      document.getElementById('kpiTotalSuccess').textContent = totalSuccess.toLocaleString();
+      document.getElementById('kpiDowntime').textContent = totalDowntime;
+      document.getElementById('kpiDowntime').className = 'value ' + (totalDowntime <= 5 ? 'green' : totalDowntime <= 15 ? 'yellow' : 'red');
+    }
+
+    // Update charts
+    function updateCharts(data) {
+      const sortedData = [...data].sort((a, b) => a.availPct - b.availPct);
+      
+      // Destroy existing charts
+      if (chartAvail) chartAvail.destroy();
+      if (chartSuccess) chartSuccess.destroy();
+      
+      if (data.length === 0) return;
+      
+      // Availability chart - color based on 99.895/99.85 thresholds
+      chartAvail = new Chart(document.getElementById('chAvail'), {
+        type: 'bar',
+        data: {
+          labels: sortedData.map(r => r.market),
+          datasets: [{
+            data: sortedData.map(r => r.availPct),
+            backgroundColor: sortedData.map(r => getChartColor(r.availPct)),
+            borderColor: sortedData.map(r => getChartBorderColor(r.availPct)),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: 99.5, max: 100, title: { display: true, text: 'Availability % (Green >= 99.895, Yellow >= 99.85, Red < 99.85)' } }
+          }
+        }
+      });
+
+      // Success rate chart - color based on 99.895/99.85 thresholds
+      chartSuccess = new Chart(document.getElementById('chSuccess'), {
+        type: 'bar',
+        data: {
+          labels: sortedData.map(r => r.market),
+          datasets: [{
+            data: sortedData.map(r => r.successRate),
+            backgroundColor: sortedData.map(r => getChartColor(r.successRate)),
+            borderColor: sortedData.map(r => getChartBorderColor(r.successRate)),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: 99.5, max: 100, title: { display: true, text: 'Success Rate % (Green >= 99.895, Yellow >= 99.85, Red < 99.85)' } }
+          }
+        }
+      });
+    }
+
+    // Update table
+    function updateTable(data) {
+      tbody.innerHTML = '';
+      
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="no-data">No data matches the selected filters</td></tr>';
+        return;
+      }
+      
+      const sortedData = [...data].sort((a, b) => a.availPct - b.availPct);
+      
+      sortedData.forEach(r => {
+        // Use 99.895/99.85 thresholds
+        const statusClass = getStatusClass(r.availPct);
+        const barClass = getBarClass(r.availPct);
+        const barWidth = Math.max(0, Math.min(100, (r.availPct - 99.5) * 200)); // Scale 99.5-100 to 0-100%
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${r.market}</strong></td>
+          <td>${r.region}</td>
+          <td class="num ${statusClass}">${r.availPct.toFixed(3)}%</td>
+          <td class="bar-cell">
+            <div class="bar-container">
+              <div class="bar-fill ${barClass}" style="width: ${barWidth}%">${r.availPct.toFixed(2)}%</div>
+            </div>
+          </td>
+          <td class="num ${getStatusClass(r.successRate)}">${r.successRate.toFixed(3)}%</td>
+          <td class="num">${r.totalHours.toLocaleString()}</td>
+          <td class="num ${r.downtimeHrs > 2 ? 'status-bad' : r.downtimeHrs > 0 ? 'status-warn' : ''}">${r.downtimeHrs}</td>
+          <td class="num">${r.pagingSucc.toLocaleString()}</td>
+          <td class="num">${r.pagingAtt.toLocaleString()}</td>
+          <td>${r.latestDate}</td>
+          <td class="num ${getStatusClass(r.latestAvail)}">${r.latestAvail.toFixed(2)}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Main refresh function
+    function refreshDashboard() {
+      const filteredData = getFilteredData();
+      filteredCountEl.textContent = filteredData.length;
+      
+      updateKPIs(filteredData);
+      updateCharts(filteredData);
+      updateTable(filteredData);
+    }
+
+    // Reset filters
+    function resetFilters() {
+      filterRegion.value = '';
+      filterMarket.value = '';
+      
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      filterDateTo.value = today.toISOString().split('T')[0];
+      filterDateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      updateMarketOptions();
+      refreshDashboard();
+    }
+
+    // Event listeners
+    filterRegion.addEventListener('change', () => {
+      updateMarketOptions();
+      refreshDashboard();
+    });
+    filterMarket.addEventListener('change', refreshDashboard);
+    filterDateFrom.addEventListener('change', refreshDashboard);
+    filterDateTo.addEventListener('change', refreshDashboard);
+    btnReset.addEventListener('click', resetFilters);
+
+    // Chart defaults
+    Chart.defaults.color = '#8b9bb4';
+    Chart.defaults.borderColor = '#2a3548';
+
+    // Initialize
+    document.getElementById('genTime').textContent = new Date().toLocaleString();
+    initFilters();
+    refreshDashboard();
+  </script>
+</body>
+</html>
